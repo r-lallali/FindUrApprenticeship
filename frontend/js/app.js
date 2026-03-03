@@ -776,7 +776,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="offer-fav-actions">
                 <button class="btn-status to_apply ${status === 'to_apply' ? 'active' : ''}" data-offer-id="${offer.id}" data-fav-id="${fbId}" data-status="to_apply" title="A postuler">A postuler</button>
                 <button class="btn-status applied ${status === 'applied' ? 'active' : ''}" data-offer-id="${offer.id}" data-fav-id="${fbId}" data-status="applied" title="Postulé">Postulé</button>
-                <button class="btn-status rejected ${status === 'rejected' ? 'active' : ''}" data-offer-id="${offer.id}" data-fav-id="${fbId}" data-status="rejected" title="Refusé">Refusé</button>
             </div>`;
         }
 
