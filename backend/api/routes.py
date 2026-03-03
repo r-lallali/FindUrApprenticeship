@@ -4,7 +4,7 @@ import json
 from collections import Counter
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_, desc
 
@@ -644,7 +644,7 @@ async def get_tech_stats(db: Session = Depends(get_db)):
 # ═══════════════════════════════════════════════════════
 
 @router.post("/scrape/{source}", response_model=ScrapingStatus)
-async def trigger_scrape(source: str, db: Session = Depends(get_db)):
+async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Manually trigger scraping for a specific source."""
     from scrapers import (
         LaBonneAlternanceScraper, FranceTravailScraper,
@@ -664,49 +664,59 @@ async def trigger_scrape(source: str, db: Session = Depends(get_db)):
             source=source,
             status="error",
             message=f"Unknown source. Available: {list(scrapers.keys())}",
+            offers_found=0,
+            offers_new=0
         )
 
-    try:
-        scraper = scrapers[source]()
-        offers = await scraper.run()
+    # We must use a new session for the background task
+    from database import SessionLocal
+    
+    async def run_scraper_bg(source_name, scraper_class):
+        bg_db = SessionLocal()
+        try:
+            scraper = scraper_class()
+            offers = await scraper.run()
+            new_count = 0
+            for offer_data in offers:
+                existing = None
+                if offer_data.get("source_id"):
+                    existing = bg_db.query(Offer).filter(
+                        Offer.source_id == offer_data["source_id"]
+                    ).first()
+                if not existing:
+                    offer = Offer(**offer_data)
+                    bg_db.add(offer)
+                    new_count += 1
+                else:
+                    if not existing.description and offer_data.get("description"):
+                        existing.description = offer_data["description"]
+            bg_db.commit()
+            print(f"Scraping completed for {source_name}. {new_count} new offers added.")
+        except Exception as e:
+            bg_db.rollback()
+            print(f"Scraping error for {source_name}: {e}")
+        finally:
+            bg_db.close()
 
-        new_count = 0
-        for offer_data in offers:
-            existing = None
-            if offer_data.get("source_id"):
-                existing = db.query(Offer).filter(
-                    Offer.source_id == offer_data["source_id"]
-                ).first()
-            if not existing:
-                offer = Offer(**offer_data)
-                db.add(offer)
-                new_count += 1
-            else:
-                if not existing.description and offer_data.get("description"):
-                    existing.description = offer_data["description"]
+    background_tasks.add_task(run_scraper_bg, source, scrapers[source])
 
-        db.commit()
-        return ScrapingStatus(
-            source=source,
-            status="completed",
-            offers_found=len(offers),
-            offers_new=new_count,
-            message=f"Scraping completed. {new_count} new offers added.",
-        )
-    except Exception as e:
-        db.rollback()
-        return ScrapingStatus(source=source, status="error", message=str(e))
+    return ScrapingStatus(
+        source=source,
+        status="started",
+        offers_found=0,
+        offers_new=0,
+        message="Le scraping a démarré en tâche de fond.",
+    )
 
 
 @router.post("/scrape", response_model=list[ScrapingStatus])
-async def trigger_scrape_all(db: Session = Depends(get_db)):
+async def trigger_scrape_all(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Trigger scraping for all sources."""
     from scrapers import (
         LaBonneAlternanceScraper, FranceTravailScraper,
         LinkedInScraper, HelloWorkScraper, WelcomeToTheJungleScraper
     )
 
-    results = []
     scrapers_list = [
         ("labonnealternance", LaBonneAlternanceScraper),
         ("francetravail", FranceTravailScraper),
@@ -715,35 +725,46 @@ async def trigger_scrape_all(db: Session = Depends(get_db)):
         ("wttj", WelcomeToTheJungleScraper),
     ]
 
-    for source_name, scraper_class in scrapers_list:
-        try:
-            scraper = scraper_class()
-            offers = await scraper.run()
+    from database import SessionLocal
 
-            new_count = 0
-            for offer_data in offers:
-                existing = None
-                if offer_data.get("source_id"):
-                    existing = db.query(Offer).filter(
-                        Offer.source_id == offer_data["source_id"]
-                    ).first()
-                if not existing:
-                    offer = Offer(**offer_data)
-                    db.add(offer)
-                    new_count += 1
-                else:
-                    if not existing.description and offer_data.get("description"):
-                        existing.description = offer_data["description"]
+    async def run_all_scrapers_bg():
+        for source_name, scraper_class in scrapers_list:
+            bg_db = SessionLocal()
+            try:
+                scraper = scraper_class()
+                offers = await scraper.run()
+                new_count = 0
+                for offer_data in offers:
+                    existing = None
+                    if offer_data.get("source_id"):
+                        existing = bg_db.query(Offer).filter(
+                            Offer.source_id == offer_data["source_id"]
+                        ).first()
+                    if not existing:
+                        offer = Offer(**offer_data)
+                        bg_db.add(offer)
+                        new_count += 1
+                    else:
+                        if not existing.description and offer_data.get("description"):
+                            existing.description = offer_data["description"]
+                bg_db.commit()
+                print(f"Scraping completed for {source_name}. {new_count} new offers added.")
+            except Exception as e:
+                bg_db.rollback()
+                print(f"Scraping error for {source_name}: {e}")
+            finally:
+                bg_db.close()
 
-            db.commit()
-            results.append(ScrapingStatus(
-                source=source_name,
-                status="completed",
-                offers_found=len(offers),
-                offers_new=new_count,
-            ))
-        except Exception as e:
-            db.rollback()
-            results.append(ScrapingStatus(source=source_name, status="error", message=str(e)))
+    background_tasks.add_task(run_all_scrapers_bg)
+
+    results = []
+    for source_name, _ in scrapers_list:
+        results.append(ScrapingStatus(
+            source=source_name,
+            status="started",
+            offers_found=0,
+            offers_new=0,
+            message="Le scraping a démarré en tâche de fond."
+        ))
 
     return results
