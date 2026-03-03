@@ -57,10 +57,10 @@ async def startup():
     from api.routes import run_global_scrape
     
     scheduler = AsyncIOScheduler()
-    # Schedule twice a day (e.g., at 04:00 and 16:00)
-    scheduler.add_job(run_global_scrape, 'cron', hour='4,16')
+    # Schedule every hour
+    scheduler.add_job(run_global_scrape, 'cron', hour='*')
     scheduler.start()
-    logger.info("Background scheduler started: Scraping scheduled at 04:00 and 16:00.")
+    logger.info("Background scheduler started: Scraping scheduled every hour.")
 
 
 if __name__ == "__main__":

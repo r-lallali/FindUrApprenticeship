@@ -185,7 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
         await loadOffers(params);
     }
 
-    let scrapePollInterval = null;
 
     async function checkScrapeStatus() {
         try {
@@ -200,48 +199,57 @@ document.addEventListener('DOMContentLoaded', () => {
                     spinnerFill.setAttribute('stroke-dasharray', `${status.progress}, 100`);
                 }
             } else {
-                if (scrapePollInterval) {
-                    clearInterval(scrapePollInterval);
-                    scrapePollInterval = null;
-                    if (status.progress === 100) {
-                        showToast('Scraping terminé avec succès!', 'success');
-                        loadOffers();
-                    }
-                }
                 btn.disabled = false;
                 btn.classList.remove('is-scraping');
                 if (spinnerFill) {
-                    spinnerFill.setAttribute('stroke-dasharray', `0, 100`);
+                    spinnerFill.setAttribute('stroke-dasharray', '0, 100');
                 }
             }
-        } catch (e) {
-            console.error("Erreur check scraping", e);
-        }
+        } catch (e) { }
     }
 
+    let isRefreshing = false;
+
     async function handleScrape() {
-        if (scrapePollInterval) return; // Already running
+        if (isRefreshing) return;
+        isRefreshing = true;
 
-        // Implement 30-minute cooldown
-        const lastScrape = localStorage.getItem('lastScrapeTime');
-        const now = Date.now();
-        const cooldown = 30 * 60 * 1000; // 30 minutes in ms
+        const btn = document.getElementById('btnScrape');
+        const spinnerFill = document.getElementById('scrapeSpinnerFill');
+        if (!btn) return;
 
-        if (lastScrape && (now - parseInt(lastScrape)) < cooldown) {
-            const remaining = Math.ceil((cooldown - (now - parseInt(lastScrape))) / 60000);
-            showToast(`Veuillez patienter ${remaining} minute${remaining > 1 ? 's' : ''} avant la prochaine actualisation.`, 'warning');
-            return;
-        }
+        btn.disabled = true;
+        btn.classList.add('is-scraping');
 
-        try {
-            await API.scrapeAll();
-            localStorage.setItem('lastScrapeTime', now.toString());
-            showToast('Le scraping a démarré en tâche de fond.', 'success');
-            scrapePollInterval = setInterval(checkScrapeStatus, 2000);
-            checkScrapeStatus();
-        } catch (error) {
-            showToast('Erreur lors du lancement du scraping.', 'error');
-        }
+        let progress = 0;
+        const totalDuration = 5000; // 5 seconds
+        const intervalTime = 50;
+        const increment = (intervalTime / totalDuration) * 100;
+
+        const interval = setInterval(() => {
+            progress += increment;
+            if (spinnerFill) {
+                spinnerFill.setAttribute('stroke-dasharray', `${Math.min(progress, 100)}, 100`);
+            }
+
+            if (progress >= 100) {
+                clearInterval(interval);
+                btn.disabled = false;
+                btn.classList.remove('is-scraping');
+                if (spinnerFill) spinnerFill.setAttribute('stroke-dasharray', '0, 100');
+
+                // Actual refresh from DB
+                loadOffers();
+                const activeTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+                if (activeTab === 'stats') {
+                    loadTechStats();
+                } else if (activeTab === 'favorites') {
+                    loadFavorites();
+                }
+
+                isRefreshing = false;
+            }
+        }, intervalTime);
     }
 
     // ===== DATA LOADING =====
