@@ -212,6 +212,8 @@ class FranceTravailScraper(BaseScraper):
                     pub_date = datetime.utcnow()
                 elif "hier" in date_text:
                     pub_date = datetime.utcnow() - timedelta(days=1)
+            if not pub_date:
+                pub_date = datetime.utcnow()
 
             # Profile
             profile = normalize_profile(raw_data.get("profile", ""))

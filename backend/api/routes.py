@@ -649,18 +649,20 @@ async def get_timeline_stats(db: Session = Depends(get_db)):
     base_query = _base_query(db)
     cutoff = datetime.utcnow() - timedelta(days=365 * 10)
 
+    month_expr = func.to_char(Offer.publication_date, 'YYYY-MM')
+
     results = (
         base_query
         .with_entities(
-            func.strftime("%Y-%m", Offer.publication_date).label("month"),
+            month_expr.label("month"),
             func.count(Offer.id).label("count"),
         )
         .filter(
             Offer.publication_date.isnot(None),
             Offer.publication_date >= cutoff,
         )
-        .group_by(func.strftime("%Y-%m", Offer.publication_date))
-        .order_by(func.strftime("%Y-%m", Offer.publication_date))
+        .group_by(month_expr)
+        .order_by(month_expr)
         .all()
     )
 
