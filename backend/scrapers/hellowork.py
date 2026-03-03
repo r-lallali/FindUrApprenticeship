@@ -56,6 +56,7 @@ class HelloWorkScraper(BaseScraper):
                     tasks.append(fetch_page(keyword, page))
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
+            initial_offers = []
             for offers in results:
                 if isinstance(offers, Exception) or not offers:
                     continue
@@ -63,12 +64,48 @@ class HelloWorkScraper(BaseScraper):
                     offer_id = raw.get("_id", "")
                     if offer_id and offer_id not in seen_ids:
                         seen_ids.add(offer_id)
-                        all_offers.append(raw)
+                        initial_offers.append(raw)
                     elif not offer_id:
-                        all_offers.append(raw)
+                        initial_offers.append(raw)
 
-        self.logger.info(f"HelloWork collected {len(all_offers)} raw items")
+            self.logger.info(f"HelloWork collected {len(initial_offers)} raw items, fetching descriptions...")
+
+            # Fetch full descriptions with concurrency limit
+            desc_semaphore = asyncio.Semaphore(5)
+
+            async def enrich_description(off):
+                url = off.get("url")
+                if url:
+                    async with desc_semaphore:
+                        full_desc = await self._fetch_description(client, url)
+                        if full_desc:
+                            off["description"] = full_desc
+                return off
+
+            enrich_tasks = [enrich_description(off) for off in initial_offers]
+            all_offers = await asyncio.gather(*enrich_tasks)
+
+        self.logger.info(f"HelloWork finished with {len(all_offers)} enriched offers")
         return all_offers
+
+    async def _fetch_description(self, client: httpx.AsyncClient, url: str) -> Optional[str]:
+        """Fetch the full job description from the detail page."""
+        try:
+            res = await client.get(url)
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, "html.parser")
+                # Look for description panels
+                desc_el = (
+                    soup.select_one("#offer-panel")
+                    or soup.select_one("section.tw-peer")
+                    or soup.select_one("[data-cy='descriptionJob']")
+                    or soup.select_one(".description")
+                )
+                if desc_el:
+                    return desc_el.get_text(separator="\n", strip=True)
+        except Exception as e:
+            self.logger.debug(f"Error fetching HelloWork description from {url}: {e}")
+        return None
 
     async def _scrape_page(
         self, client: httpx.AsyncClient, keyword: str, page: int

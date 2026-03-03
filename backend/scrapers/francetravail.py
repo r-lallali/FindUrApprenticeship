@@ -79,15 +79,52 @@ class FranceTravailScraper(BaseScraper):
                     tasks.append(fetch_term_page(term, page))
             
             results = await asyncio.gather(*tasks)
+            initial_offers = []
             for offers in results:
                 for offer in offers:
                     oid = offer.get("_id", "")
                     if oid and oid not in seen_ids:
                         seen_ids.add(oid)
-                        all_offers.append(offer)
+                        initial_offers.append(offer)
 
-        self.logger.info(f"France Travail: {len(all_offers)} unique offers collected")
+            self.logger.info(f"France Travail: {len(initial_offers)} unique offers collected, fetching descriptions...")
+
+            # Fetch full descriptions with higher concurrency for detail pages
+            desc_semaphore = asyncio.Semaphore(5)
+
+            async def enrich_description(off):
+                oid = off.get("_id")
+                if oid:
+                    async with desc_semaphore:
+                        full_desc = await self._fetch_description(client, oid)
+                        if full_desc:
+                            off["description"] = full_desc
+                return off
+
+            enrich_tasks = [enrich_description(off) for off in initial_offers]
+            all_offers = await asyncio.gather(*enrich_tasks)
+
+        self.logger.info(f"France Travail: {len(all_offers)} offers enriched and ready")
         return all_offers
+
+    async def _fetch_description(self, client: httpx.AsyncClient, offer_id: str) -> Optional[str]:
+        """Fetch the full job description from the detail page."""
+        try:
+            url = f"https://candidat.francetravail.fr/offres/recherche/detail/{offer_id}"
+            response = await client.get(url)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, "html.parser")
+                # Look for the main description container
+                desc_el = (
+                    soup.select_one("div[itemprop='description']")
+                    or soup.select_one(".description")
+                    or soup.select_one(".offre-detail-description")
+                )
+                if desc_el:
+                    return desc_el.get_text(separator="\n", strip=True)
+        except Exception as e:
+            self.logger.debug(f"Error fetching description for {offer_id}: {e}")
+        return None
 
     async def _search_page(
         self, client: httpx.AsyncClient, keyword: str, page: int
@@ -139,6 +176,10 @@ class FranceTravailScraper(BaseScraper):
                 )
                 if title_el:
                     offer["title"] = title_el.get_text(strip=True)
+                    href = title_el.get("href", "")
+                if offer.get("_id"):
+                    offer["url"] = f"https://candidat.francetravail.fr/offres/recherche/detail/{offer['_id']}"
+                elif title_el:
                     href = title_el.get("href", "")
                     if href and not href.startswith("http"):
                         href = f"https://candidat.francetravail.fr{href}"
@@ -227,11 +268,12 @@ class FranceTravailScraper(BaseScraper):
             # Profile
             profile = normalize_profile(raw_data.get("profile", ""))
 
-            # URL
-            url = raw_data.get("url", "")
+            # URL - Force direct detail URL for consistency and reliability
             offer_id = raw_data.get("_id", "")
-            if not url and offer_id:
+            if offer_id:
                 url = f"https://candidat.francetravail.fr/offres/recherche/detail/{offer_id}"
+            else:
+                url = raw_data.get("url", "")
 
             # Salary
             salary = raw_data.get("salary", "")
