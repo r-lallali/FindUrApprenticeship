@@ -205,7 +205,9 @@ def _base_query(db: Session):
         Offer.is_alternance == True,  # noqa: E712
         # Exclude known training schools / "fake" company offers
         Offer.company.notilike("%iscod%"),
+        Offer.description.notilike("%iscod%"),
         Offer.company.notilike("%icademie%"),
+        Offer.description.notilike("%icademie%"),
         Offer.company.notilike("%i-cademie%"),
         Offer.company.notilike("%livecampus%"),
         Offer.company.notilike("%live campus%"),

@@ -89,6 +89,7 @@ SCHOOL_DESCRIPTION_KEYWORDS = [
     "prise en charge par l'opco",
     "aucun frais pour le candidat",
     "aucun frais de formation",
+    "iscod", "icademie", "i-cademie"
 ]
 
 
