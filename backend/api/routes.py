@@ -822,6 +822,15 @@ async def run_global_scrape():
                     existing = bg_db.query(Offer).filter(
                         Offer.source_id == offer_data["source_id"]
                     ).first()
+                
+                if not existing:
+                    # Content-based duplicate check
+                    existing = bg_db.query(Offer).filter(
+                        Offer.title == offer_data.get("title"),
+                        Offer.description == offer_data.get("description"),
+                        Offer.location == offer_data.get("location"),
+                        Offer.department == offer_data.get("department")
+                    ).first()
                 if not existing:
                     offer = Offer(**offer_data)
                     bg_db.add(offer)
@@ -902,6 +911,15 @@ async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Ses
                 if offer_data.get("source_id"):
                     existing = bg_db.query(Offer).filter(
                         Offer.source_id == offer_data["source_id"]
+                    ).first()
+                
+                if not existing:
+                    # Content-based duplicate check
+                    existing = bg_db.query(Offer).filter(
+                        Offer.title == offer_data.get("title"),
+                        Offer.description == offer_data.get("description"),
+                        Offer.location == offer_data.get("location"),
+                        Offer.department == offer_data.get("department")
                     ).first()
                 if not existing:
                     offer = Offer(**offer_data)
@@ -1000,6 +1018,43 @@ async def fix_school_flags(db: Session = Depends(get_db)):
         "unique_schools": unique_schools[:50],
         "message": f"{flagged} offres marquées comme écoles.",
     }
+
+
+@router.post("/admin/cleanup-duplicates")
+async def cleanup_duplicates(db: Session = Depends(get_db)):
+    """Remove existing duplicate offers based on title, description, location, and department."""
+    # This identifies duplicates and keeps the one with the most recent publication or scrap date.
+    all_offers = db.query(Offer).order_by(desc(Offer.scraped_at)).all()
+    
+    seen = set()
+    to_delete = []
+    
+    for offer in all_offers:
+        # Create a unique key for comparison
+        # We normalize slightly to be safer (strip and lower)
+        key = (
+            (offer.title or "").strip().lower(),
+            (offer.description or "").strip().lower(),
+            (offer.location or "").strip().lower(),
+            (offer.department or "").strip().lower()
+        )
+        
+        if key in seen:
+            to_delete.append(offer.id)
+        else:
+            seen.add(key)
+    
+    deleted_count = 0
+    if to_delete:
+        # Delete in chunks to avoid large query issues
+        chunk_size = 500
+        for i in range(0, len(to_delete), chunk_size):
+            chunk = to_delete[i:i+chunk_size]
+            db.query(Offer).filter(Offer.id.in_(chunk)).delete(synchronize_session=False)
+            deleted_count += len(chunk)
+            
+    db.commit()
+    return {"deleted": deleted_count, "message": f"{deleted_count} offres en doublon ont été supprimées."}
 
 
 @router.post("/admin/fix-urls")
