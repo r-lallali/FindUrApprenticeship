@@ -466,9 +466,12 @@ a:hover {
     display: block;
 }
 
-.btn-theme.is-scraping {
-    background: #ffffff;
-    /* keep it white while scraping */
+.btn-theme.is-scraping,
+.btn-theme:disabled {
+    background: #ffffff !important;
+    color: #000000 !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #000000;
     cursor: default;
     pointer-events: none;
 }
