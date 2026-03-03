@@ -1369,7 +1369,7 @@ a:hover {
 .stats-panel-header {
     display: flex !important;
     flex-direction: row !important;
-    justify-content: space-between !important;
+    justify-content: center !important;
     align-items: center !important;
     gap: 16px !important;
     margin-bottom: 10px !important;
@@ -1384,6 +1384,8 @@ a:hover {
     text-transform: uppercase !important;
     letter-spacing: 0.8px !important;
     margin-bottom: 10px !important;
+    text-align: center !important;
+    width: 100% !important;
 }
 
 .stats-panel-header .stats-panel-title {
