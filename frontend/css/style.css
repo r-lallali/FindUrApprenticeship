@@ -101,9 +101,9 @@
     --info: #2563eb;
 
     /* Text */
-    --text-primary: #0a0a0a;
-    --text-secondary: #525252;
-    --text-muted: #a3a3a3;
+    --text-primary: #000000;
+    --text-secondary: #000000;
+    --text-muted: #404040;
     --text-accent: #2563eb;
 
     /* Borders */
@@ -428,6 +428,40 @@ a:hover {
 .btn-theme:hover {
     background: #f4f4f5;
     box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+}
+
+/* Specific light theme overrides for Actualiser button and filters */
+[data-theme="light"] .btn-theme {
+    background: #000000 !important;
+    color: #ffffff !important;
+    border-color: #000000 !important;
+}
+
+[data-theme="light"] .btn-theme:hover {
+    background: #1a1a1a !important;
+}
+
+[data-theme="light"] .btn-theme.is-scraping,
+[data-theme="light"] .btn-theme:disabled {
+    background: #000000 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="light"] .scrape-spinner-bg {
+    stroke: rgba(255, 255, 255, 0.2) !important;
+}
+
+[data-theme="light"] .scrape-spinner-fill {
+    stroke: #ffffff !important;
+}
+
+[data-theme="light"] .filter-title {
+    color: #000000 !important;
+}
+
+[data-theme="light"] .btn-reset {
+    color: #000000 !important;
+    border-color: #000000 !important;
 }
 
 .scrape-container {
