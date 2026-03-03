@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const btnScrape = document.getElementById('btnScrape');
     if (btnScrape) btnScrape.addEventListener('click', handleScrape);
+    checkScrapeStatus(); // Check if scrape already running in background
 
     const headerLogo = document.getElementById('headerLogo');
     if (headerLogo) {
@@ -151,21 +152,52 @@ document.addEventListener('DOMContentLoaded', () => {
         await loadOffers(params);
     }
 
+    let scrapePollInterval = null;
+
+    async function checkScrapeStatus() {
+        try {
+            const status = await API.getScrapeStatus();
+            const btn = document.getElementById('btnScrape');
+            const wrapper = document.getElementById('scrapeProgressWrapper');
+            const pgBar = document.getElementById('scrapeProgressBar');
+            const pgText = document.getElementById('scrapeProgressText');
+
+            if (status.is_running) {
+                btn.disabled = true;
+                btn.classList.add('loading');
+                btn.textContent = 'Actualisation...';
+                wrapper.style.display = 'flex';
+                pgBar.style.setProperty('--progress', `${status.progress}%`);
+                pgText.textContent = `${status.progress}% - ${status.message}`;
+            } else {
+                if (scrapePollInterval) {
+                    clearInterval(scrapePollInterval);
+                    scrapePollInterval = null;
+                    if (status.progress === 100) {
+                        showToast('Scraping terminé avec succès!', 'success');
+                        loadOffers();
+                    }
+                }
+                btn.disabled = false;
+                btn.classList.remove('loading');
+                btn.textContent = 'Actualiser';
+                wrapper.style.display = 'none';
+            }
+        } catch (e) {
+            console.error("Erreur check scraping", e);
+        }
+    }
+
     async function handleScrape() {
-        const btn = document.getElementById('btnScrape');
-        btn.disabled = true;
-        btn.classList.add('loading');
-        btn.textContent = 'Démarrage...';
+        if (scrapePollInterval) return; // Already running
 
         try {
             await API.scrapeAll();
-            showToast('Le scraping a démarré en tâche de fond. Actualisez dans quelques minutes.', 'success');
+            showToast('Le scraping a démarré en tâche de fond.', 'success');
+            scrapePollInterval = setInterval(checkScrapeStatus, 2000);
+            checkScrapeStatus();
         } catch (error) {
             showToast('Erreur lors du lancement du scraping.', 'error');
-        } finally {
-            btn.disabled = false;
-            btn.classList.remove('loading');
-            btn.textContent = 'Actualiser';
         }
     }
 

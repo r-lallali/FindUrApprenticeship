@@ -56,7 +56,13 @@
                     <!-- User menu (dynamic) -->
                     <div id="userSlot"></div>
 
-                    <button class="btn btn-primary" id="btnScrape" title="Lancer le scraping">Actualiser</button>
+                    <div class="scrape-container">
+                        <button class="btn btn-theme" id="btnScrape" title="Lancer le scraping">Actualiser</button>
+                        <div class="scrape-progress-wrapper" id="scrapeProgressWrapper" style="display: none;">
+                            <div class="scrape-progress-bar" id="scrapeProgressBar"></div>
+                            <span class="scrape-progress-text" id="scrapeProgressText">0%</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </header>

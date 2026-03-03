@@ -83,6 +83,9 @@ const API = (() => {
         scrapeSource(source) {
             return request(`/scrape/${source}`, { method: 'POST' });
         },
+        getScrapeStatus() {
+            return request('/scrape/status');
+        },
 
         // ── Auth ──
         register(username, email, password) {

@@ -744,6 +744,20 @@ async def get_timeline_stats(db: Session = Depends(get_db)):
 # SCRAPING ENDPOINTS
 # ═══════════════════════════════════════════════════════
 
+# Global scraping state to provide progress updates parsing via UI
+global_scraping_status = {
+    "is_running": False,
+    "progress": 0,
+    "message": "En attente",
+    "details": "",
+}
+
+@router.get("/scrape/status")
+async def get_scrape_status():
+    """Get the current background scraping status."""
+    return global_scraping_status
+
+
 @router.post("/scrape/{source}", response_model=ScrapingStatus)
 async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Manually trigger scraping for a specific source."""
@@ -773,10 +787,20 @@ async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Ses
     from database import SessionLocal
     
     async def run_scraper_bg(source_name, scraper_class):
+        global global_scraping_status
+        if global_scraping_status["is_running"]:
+            return  # Prevent concurrent scrapes
+        global_scraping_status["is_running"] = True
+        global_scraping_status["progress"] = 10
+        global_scraping_status["message"] = f"Scraping {source_name} en cours..."
+        global_scraping_status["details"] = f"Lancement de {source_name}"
         bg_db = SessionLocal()
         try:
             scraper = scraper_class()
+            global_scraping_status["progress"] = 30
             offers = await scraper.run()
+            global_scraping_status["progress"] = 70
+            global_scraping_status["details"] = f"Enregistrement de {len(offers)} offres..."
             new_count = 0
             for offer_data in offers:
                 existing = None
@@ -794,12 +818,18 @@ async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Ses
                     if not existing.publication_date and offer_data.get("publication_date"):
                         existing.publication_date = offer_data["publication_date"]
             bg_db.commit()
+            global_scraping_status["progress"] = 100
+            global_scraping_status["message"] = "Terminé"
+            global_scraping_status["details"] = f"Scraping terminé pour {source_name}. {new_count} nouvelles offres ajoutées."
             print(f"Scraping completed for {source_name}. {new_count} new offers added.")
         except Exception as e:
             bg_db.rollback()
+            global_scraping_status["message"] = "Erreur"
+            global_scraping_status["details"] = str(e)
             print(f"Scraping error for {source_name}: {e}")
         finally:
             bg_db.close()
+            global_scraping_status["is_running"] = False
 
     background_tasks.add_task(run_scraper_bg, source, scrapers[source])
 
@@ -831,11 +861,28 @@ async def trigger_scrape_all(background_tasks: BackgroundTasks, db: Session = De
     from database import SessionLocal
 
     async def run_all_scrapers_bg():
-        for source_name, scraper_class in scrapers_list:
+        global global_scraping_status
+        if global_scraping_status["is_running"]:
+            return
+        global_scraping_status["is_running"] = True
+        global_scraping_status["progress"] = 0
+        global_scraping_status["message"] = "Démarrage du scraping global..."
+        global_scraping_status["details"] = ""
+        
+        total = len(scrapers_list)
+        for idx, (source_name, scraper_class) in enumerate(scrapers_list):
             bg_db = SessionLocal()
             try:
+                base_prog = int((idx / total) * 100)
+                global_scraping_status["progress"] = base_prog + 5
+                global_scraping_status["message"] = f"Scraping en cours ({idx + 1}/{total})"
+                global_scraping_status["details"] = f"Recherche sur {source_name}..."
+                
                 scraper = scraper_class()
                 offers = await scraper.run()
+                
+                global_scraping_status["progress"] = base_prog + int((0.8 / total) * 100)
+                global_scraping_status["details"] = f"Enregistrement de {len(offers)} offres de {source_name}..."
                 new_count = 0
                 for offer_data in offers:
                     existing = None
@@ -857,8 +904,14 @@ async def trigger_scrape_all(background_tasks: BackgroundTasks, db: Session = De
             except Exception as e:
                 bg_db.rollback()
                 print(f"Scraping error for {source_name}: {e}")
+                global_scraping_status["details"] = f"Erreur sur {source_name}: {e}"
             finally:
                 bg_db.close()
+                
+        global_scraping_status["progress"] = 100
+        global_scraping_status["message"] = "Terminé"
+        global_scraping_status["details"] = "Tous les sites ont été analysés."
+        global_scraping_status["is_running"] = False
 
     background_tasks.add_task(run_all_scrapers_bg)
 
