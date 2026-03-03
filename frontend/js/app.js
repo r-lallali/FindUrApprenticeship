@@ -734,6 +734,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const sidebar = document.querySelector('.sidebar');
         if (sidebar) sidebar.classList.remove('hidden');
 
+        // Update tab indicator position and color
+        const tabsContainer = document.querySelector('.header-tabs');
+        if (tabsContainer) tabsContainer.dataset.activeTab = 'offers';
+        updateTabIndicator();
+
         // Set the filter and trigger reload
         Filters.setFilter(filterKey, filterValue);
 
