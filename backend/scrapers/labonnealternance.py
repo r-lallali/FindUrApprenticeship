@@ -224,9 +224,20 @@ class LaBonneAlternanceScraper(BaseScraper):
 
             # URL
             url = raw_data.get("url", "")
+            offer_id = raw_data.get("id", "")
+
+            # Build URL for offers that don't have one
+            if not url and offer_id:
+                if idea_type == "matcha":
+                    url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type=matcha&itemId={offer_id}"
+                elif idea_type == "peJob":
+                    url = f"https://candidat.francetravail.fr/offres/recherche/detail/{offer_id}"
+                elif idea_type == "offres_emploi_partenaires" or idea_type == "partnerJob":
+                    url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type=partner&itemId={offer_id}"
+                else:
+                    url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type={idea_type}&itemId={offer_id}"
 
             # Unique ID
-            offer_id = raw_data.get("id", "")
             source_id = f"lba_{idea_type}_{offer_id}" if offer_id else None
 
             clean_loc = clean_text(location)
