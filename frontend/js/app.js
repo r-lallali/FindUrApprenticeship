@@ -158,17 +158,14 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const status = await API.getScrapeStatus();
             const btn = document.getElementById('btnScrape');
-            const wrapper = document.getElementById('scrapeProgressWrapper');
-            const pgBar = document.getElementById('scrapeProgressBar');
-            const pgText = document.getElementById('scrapeProgressText');
+            const spinnerFill = document.getElementById('scrapeSpinnerFill');
 
             if (status.is_running) {
                 btn.disabled = true;
-                btn.classList.add('loading');
-                btn.textContent = 'Actualisation...';
-                wrapper.style.display = 'flex';
-                pgBar.style.setProperty('--progress', `${status.progress}%`);
-                pgText.textContent = `${status.progress}% - ${status.message}`;
+                btn.classList.add('is-scraping');
+                if (spinnerFill) {
+                    spinnerFill.setAttribute('stroke-dasharray', `${status.progress}, 100`);
+                }
             } else {
                 if (scrapePollInterval) {
                     clearInterval(scrapePollInterval);
@@ -179,9 +176,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 btn.disabled = false;
-                btn.classList.remove('loading');
-                btn.textContent = 'Actualiser';
-                wrapper.style.display = 'none';
+                btn.classList.remove('is-scraping');
+                if (spinnerFill) {
+                    spinnerFill.setAttribute('stroke-dasharray', `0, 100`);
+                }
             }
         } catch (e) {
             console.error("Erreur check scraping", e);

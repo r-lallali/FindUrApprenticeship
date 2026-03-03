@@ -410,66 +410,67 @@ a:hover {
 }
 
 .btn-theme {
-    background: var(--text-primary);
-    color: var(--bg-primary);
-    border: 1px solid var(--border);
+    background: #ffffff;
+    color: #000000;
+    border: 1px solid #e5e5e5;
+    min-width: 110px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+}
+
+[data-theme="dark"] .btn-theme {
+    border-color: #333333;
 }
 
 .btn-theme:hover {
-    background: var(--text-secondary);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background: #f4f4f5;
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
 }
 
 .scrape-container {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    position: relative;
 }
 
-.scrape-progress-wrapper {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: 140px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 6px 10px;
-    box-shadow: var(--shadow-md);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    z-index: 200;
+/* iOS Style spinner */
+.scrape-spinner {
+    width: 22px;
+    height: 22px;
+    transform: rotate(-90deg);
+    display: none;
 }
 
-.scrape-progress-bar {
-    width: 100%;
-    height: 6px;
-    background: var(--bg-secondary);
-    border-radius: 3px;
-    overflow: hidden;
-    position: relative;
+.scrape-spinner-bg {
+    fill: none;
+    stroke: rgba(0, 0, 0, 0.15);
+    stroke-width: 3.5;
 }
 
-.scrape-progress-bar::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: var(--progress, 0%);
-    background: var(--text-primary);
-    border-radius: 3px;
-    transition: width 0.3s ease-in-out;
+.scrape-spinner-fill {
+    fill: none;
+    stroke: #000000;
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.3s ease-in-out;
 }
 
-.scrape-progress-text {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text-secondary);
+/* state transitions */
+.btn-theme.is-scraping .btn-text {
+    display: none;
+}
+
+.btn-theme.is-scraping .scrape-spinner {
+    display: block;
+}
+
+.btn-theme.is-scraping {
+    background: #ffffff;
+    /* keep it white while scraping */
+    cursor: default;
+    pointer-events: none;
 }
 
 /* ===== MAIN ===== */

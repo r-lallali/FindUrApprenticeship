@@ -57,11 +57,15 @@
                     <div id="userSlot"></div>
 
                     <div class="scrape-container">
-                        <button class="btn btn-theme" id="btnScrape" title="Lancer le scraping">Actualiser</button>
-                        <div class="scrape-progress-wrapper" id="scrapeProgressWrapper" style="display: none;">
-                            <div class="scrape-progress-bar" id="scrapeProgressBar"></div>
-                            <span class="scrape-progress-text" id="scrapeProgressText">0%</span>
-                        </div>
+                        <button class="btn btn-theme" id="btnScrape" title="Lancer le scraping">
+                            <span class="btn-text" id="btnScrapeText">Actualiser</span>
+                            <svg class="scrape-spinner" id="scrapeSpinner" viewBox="0 0 36 36">
+                                <path class="scrape-spinner-bg"
+                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <path class="scrape-spinner-fill" id="scrapeSpinnerFill" stroke-dasharray="0, 100"
+                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
             </div>
