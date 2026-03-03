@@ -72,8 +72,8 @@ const API = (() => {
         getTechStats() {
             return request('/stats/tech');
         },
-        getTimelineStats() {
-            return request('/stats/timeline');
+        getTimelineStats(scale = 'month') {
+            return request(`/stats/timeline?scale=${scale}`);
         },
 
         // ── Scraping ──

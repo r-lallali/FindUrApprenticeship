@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== INITIALIZATION =====
     initTheme();
     initUserUI();
+    initTimelineControls();
     Filters.init(handleFilterChange);
     loadFilters();
     loadOffers();
@@ -396,23 +397,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ===== TIMELINE CHART =====
+    let currentTimelineScale = 'month';
+    let cachedTimelineData = {}; // scale -> data map
+
+    function initTimelineControls() {
+        const btns = document.querySelectorAll('.btn-scale');
+        btns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const scale = btn.dataset.scale;
+                if (scale === currentTimelineScale) return;
+
+                btns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                currentTimelineScale = scale;
+                loadTimelineChart();
+            });
+        });
+    }
+
     async function loadTimelineChart() {
         const loading = document.getElementById('timelineLoading');
         const canvas = document.getElementById('timelineCanvas');
         try {
-            if (!cachedTimelineStats) cachedTimelineStats = await API.getTimelineStats();
-            if (loading) loading.style.display = 'none';
-            if (cachedTimelineStats && cachedTimelineStats.length > 0) {
-                renderTimelineChart(cachedTimelineStats);
-            } else {
-                if (loading) { loading.style.display = 'block'; loading.textContent = 'Aucune donnée disponible.'; }
+            if (!cachedTimelineData[currentTimelineScale]) {
+                const data = await API.getTimelineStats(currentTimelineScale);
+                cachedTimelineData[currentTimelineScale] = data;
             }
-        } catch {
-            if (loading) { loading.style.display = 'block'; loading.textContent = 'Erreur de chargement.'; }
+
+            const data = cachedTimelineData[currentTimelineScale];
+
+            if (loading) loading.style.display = 'none';
+            if (data && data.length > 0) {
+                renderTimelineChart(data, currentTimelineScale);
+            } else {
+                if (loading) {
+                    loading.style.display = 'block';
+                    loading.textContent = 'Aucune donnée disponible.';
+                }
+            }
+        } catch (err) {
+            console.error('Timeline error:', err);
+            if (loading) {
+                loading.style.display = 'block';
+                loading.textContent = 'Erreur de chargement.';
+            }
         }
     }
 
-    function renderTimelineChart(data) {
+    function renderTimelineChart(data, scale = 'month') {
         const container = document.getElementById('timelineChartContainer');
         const canvas = document.getElementById('timelineCanvas');
         const tooltip = document.getElementById('timelineTooltip');
@@ -445,8 +478,12 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         }
 
-        function formatLabel(monthStr) {
-            const [year, month] = monthStr.split('-');
+        function formatLabel(periodStr) {
+            if (scale === 'week') {
+                const [year, week] = periodStr.split('-');
+                return `S${week} ${year}`;
+            }
+            const [year, month] = periodStr.split('-');
             return `${MONTH_NAMES_FR[parseInt(month, 10) - 1]} ${year}`;
         }
 
@@ -547,12 +584,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             for (let i = 0; i < data.length; i += step) {
                 const p = points[i];
-                ctx.fillText(formatLabel(data[i].month), p.x, h - padding.bottom + 8);
+                ctx.fillText(formatLabel(data[i].period), p.x, h - padding.bottom + 8);
             }
             // Always show last label
             if ((data.length - 1) % step !== 0) {
                 const last = points[points.length - 1];
-                ctx.fillText(formatLabel(data[data.length - 1].month), last.x, h - padding.bottom + 8);
+                ctx.fillText(formatLabel(data[data.length - 1].period), last.x, h - padding.bottom + 8);
             }
 
             return points;
@@ -578,13 +615,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (closest && closestDist < 30) {
                 tooltip.style.display = 'block';
-                tooltip.innerHTML = `<strong>${formatLabel(closest.data.month)}</strong><br>${closest.data.count.toLocaleString('fr-FR')} offres`;
+                const containerRect = container.getBoundingClientRect();
+                const tooltipRect = tooltip.getBoundingClientRect();
 
-                // Position tooltip
                 let left = closest.x + 12;
                 let top = closest.y - 10;
-                const tooltipRect = tooltip.getBoundingClientRect();
-                const containerRect = container.getBoundingClientRect();
 
                 if (left + tooltipRect.width > containerRect.width - 10) {
                     left = closest.x - tooltipRect.width - 12;
@@ -593,8 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 tooltip.style.left = left + 'px';
                 tooltip.style.top = top + 'px';
-
-                // Redraw with highlighted point
+                tooltip.innerHTML = `<strong>${formatLabel(closest.data.period)}</strong><br>${closest.data.count} offres`;
                 chartPoints = draw();
                 const colors = getThemeColors();
                 const ctx2 = canvas.getContext('2d');

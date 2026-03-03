@@ -47,10 +47,20 @@ if os.path.exists(frontend_dir):
 
 @app.on_event("startup")
 async def startup():
-    """Initialize the database on startup."""
+    """Initialize the database and scheduler on startup."""
     logger.info("Initializing database...")
     init_db()
     logger.info("Database initialized successfully.")
+
+    # Setup Scheduler for automatic scraping
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from api.routes import run_global_scrape
+    
+    scheduler = AsyncIOScheduler()
+    # Schedule twice a day (e.g., at 04:00 and 16:00)
+    scheduler.add_job(run_global_scrape, 'cron', hour='4,16')
+    scheduler.start()
+    logger.info("Background scheduler started: Scraping scheduled at 04:00 and 16:00.")
 
 
 if __name__ == "__main__":

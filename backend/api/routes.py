@@ -715,29 +715,39 @@ async def get_tech_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/stats/timeline")
-async def get_timeline_stats(db: Session = Depends(get_db)):
-    """Get offer counts grouped by month for the timeline chart (up to 10 years back)."""
+async def get_timeline_stats(
+    scale: str = Query("month", enum=["month", "week"]),
+    db: Session = Depends(get_db)
+):
+    """Get offer counts grouped by month or week for the timeline chart."""
     base_query = _base_query(db)
-    cutoff = datetime.utcnow() - timedelta(days=365 * 10)
+    # Filter only last 5 years for week scale, 10 years for month
+    days_back = 365 * 10 if scale == "month" else 365 * 2
+    cutoff = datetime.utcnow() - timedelta(days=days_back)
 
-    month_expr = func.to_char(Offer.publication_date, 'YYYY-MM')
+    if scale == "week":
+        # Group by Year and Week number
+        group_expr = func.to_char(Offer.publication_date, 'IYYY-IW')
+    else:
+        # Group by Year and Month
+        group_expr = func.to_char(Offer.publication_date, 'YYYY-MM')
 
     results = (
         base_query
         .with_entities(
-            month_expr.label("month"),
+            group_expr.label("period"),
             func.count(Offer.id).label("count"),
         )
         .filter(
             Offer.publication_date.isnot(None),
             Offer.publication_date >= cutoff,
         )
-        .group_by(month_expr)
-        .order_by(month_expr)
+        .group_by(group_expr)
+        .order_by(group_expr)
         .all()
     )
 
-    return [{"month": row.month, "count": row.count} for row in results]
+    return [{"period": row.period, "count": row.count} for row in results]
 
 
 # ═══════════════════════════════════════════════════════
@@ -756,6 +766,79 @@ global_scraping_status = {
 async def get_scrape_status():
     """Get the current background scraping status."""
     return global_scraping_status
+
+async def run_global_scrape():
+    """Logic for full system scrape, used by API and Scheduler."""
+    from scrapers import (
+        LaBonneAlternanceScraper, FranceTravailScraper,
+        LinkedInScraper, HelloWorkScraper, WelcomeToTheJungleScraper
+    )
+    from database import SessionLocal
+    import asyncio
+
+    scrapers_list = [
+        ("labonnealternance", LaBonneAlternanceScraper),
+        ("francetravail", FranceTravailScraper),
+        ("linkedin", LinkedInScraper),
+        ("hellowork", HelloWorkScraper),
+        ("wttj", WelcomeToTheJungleScraper),
+    ]
+
+    global global_scraping_status
+    if global_scraping_status["is_running"]:
+        return
+    
+    global_scraping_status["is_running"] = True
+    global_scraping_status["progress"] = 5
+    global_scraping_status["message"] = "Lancement en parallèle..."
+    global_scraping_status["details"] = "Démarrage des scrapers simultanés"
+    
+    total = len(scrapers_list)
+    completed = 0
+    
+    async def scrape_and_save(source_name, scraper_class):
+        nonlocal completed
+        bg_db = SessionLocal()
+        try:
+            scraper = scraper_class()
+            offers = await scraper.run()
+            
+            new_count = 0
+            for offer_data in offers:
+                existing = None
+                if offer_data.get("source_id"):
+                    existing = bg_db.query(Offer).filter(
+                        Offer.source_id == offer_data["source_id"]
+                    ).first()
+                if not existing:
+                    offer = Offer(**offer_data)
+                    bg_db.add(offer)
+                    new_count += 1
+                else:
+                    if not existing.description and offer_data.get("description"):
+                        existing.description = offer_data["description"]
+                    if not existing.publication_date and offer_data.get("publication_date"):
+                        existing.publication_date = offer_data["publication_date"]
+            bg_db.commit()
+            print(f"Scraping completed for {source_name}. {new_count} new offers added.")
+        except Exception as e:
+            bg_db.rollback()
+            print(f"Scraping error for {source_name}: {e}")
+        finally:
+            bg_db.close()
+            completed += 1
+            prog = int((completed / total) * 95) + 5
+            global_scraping_status["progress"] = prog
+            global_scraping_status["message"] = f"Analyse en cours ({completed}/{total})"
+            global_scraping_status["details"] = f"{source_name} terminé"
+
+    tasks = [scrape_and_save(name, cls) for name, cls in scrapers_list]
+    await asyncio.gather(*tasks, return_exceptions=True)
+            
+    global_scraping_status["progress"] = 100
+    global_scraping_status["message"] = "Terminé"
+    global_scraping_status["details"] = "Tous les sites ont été analysés."
+    global_scraping_status["is_running"] = False
 
 
 @router.post("/scrape/{source}", response_model=ScrapingStatus)
@@ -845,82 +928,17 @@ async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Ses
 @router.post("/scrape", response_model=list[ScrapingStatus])
 async def trigger_scrape_all(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Trigger scraping for all sources."""
+    background_tasks.add_task(run_global_scrape)
+
+    # Return starting status for UI
     from scrapers import (
         LaBonneAlternanceScraper, FranceTravailScraper,
         LinkedInScraper, HelloWorkScraper, WelcomeToTheJungleScraper
     )
-
-    scrapers_list = [
-        ("labonnealternance", LaBonneAlternanceScraper),
-        ("francetravail", FranceTravailScraper),
-        ("linkedin", LinkedInScraper),
-        ("hellowork", HelloWorkScraper),
-        ("wttj", WelcomeToTheJungleScraper),
-    ]
-
-    import asyncio
-    from database import SessionLocal
-
-    async def run_all_scrapers_bg():
-        global global_scraping_status
-        if global_scraping_status["is_running"]:
-            return
-        global_scraping_status["is_running"] = True
-        global_scraping_status["progress"] = 5
-        global_scraping_status["message"] = "Lancement en parallèle..."
-        global_scraping_status["details"] = "Démarrage des scrapers simultanés"
-        
-        total = len(scrapers_list)
-        completed = 0
-        
-        async def scrape_and_save(source_name, scraper_class):
-            nonlocal completed
-            bg_db = SessionLocal()
-            try:
-                scraper = scraper_class()
-                offers = await scraper.run()
-                
-                new_count = 0
-                for offer_data in offers:
-                    existing = None
-                    if offer_data.get("source_id"):
-                        existing = bg_db.query(Offer).filter(
-                            Offer.source_id == offer_data["source_id"]
-                        ).first()
-                    if not existing:
-                        offer = Offer(**offer_data)
-                        bg_db.add(offer)
-                        new_count += 1
-                    else:
-                        if not existing.description and offer_data.get("description"):
-                            existing.description = offer_data["description"]
-                        if not existing.publication_date and offer_data.get("publication_date"):
-                            existing.publication_date = offer_data["publication_date"]
-                bg_db.commit()
-                print(f"Scraping completed for {source_name}. {new_count} new offers added.")
-            except Exception as e:
-                bg_db.rollback()
-                print(f"Scraping error for {source_name}: {e}")
-            finally:
-                bg_db.close()
-                completed += 1
-                prog = int((completed / total) * 95) + 5
-                global_scraping_status["progress"] = prog
-                global_scraping_status["message"] = f"Analyse en cours ({completed}/{total})"
-                global_scraping_status["details"] = f"{source_name} terminé"
-
-        tasks = [scrape_and_save(name, cls) for name, cls in scrapers_list]
-        await asyncio.gather(*tasks, return_exceptions=True)
-                
-        global_scraping_status["progress"] = 100
-        global_scraping_status["message"] = "Terminé"
-        global_scraping_status["details"] = "Tous les sites ont été analysés."
-        global_scraping_status["is_running"] = False
-
-    background_tasks.add_task(run_all_scrapers_bg)
-
+    scrapers_list = ["labonnealternance", "francetravail", "linkedin", "hellowork", "wttj"]
+    
     results = []
-    for source_name, _ in scrapers_list:
+    for source_name in scrapers_list:
         results.append(ScrapingStatus(
             source=source_name,
             status="started",
