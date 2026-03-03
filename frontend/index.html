@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Find Ur Alternance">
+    <title>Find Ur Alternance</title>
+    <link rel="icon" type="image/png" href="img/logo-inv.png">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="app">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <img src="img/logo.png" alt="FUA Logo" class="logo-icon-img">
+                    <div>
+                        <div class="logo-text">FUA</div>
+                        <div class="logo-subtitle">Find Ur Alternance</div>
+                    </div>
+                </div>
+
+                <div class="search-container">
+                    <svg class="search-icon-svg" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="8.5" cy="8.5" r="5.5" />
+                        <line x1="13" y1="13" x2="18" y2="18" />
+                    </svg>
+                    <input type="text" class="search-input" id="searchInput"
+                        placeholder="Rechercher une offre, un poste, une entreprise..." autocomplete="off">
+                </div>
+
+                <!-- Tab Navigation -->
+                <nav class="header-tabs">
+                    <button class="tab-btn active" data-tab="offers" id="tabOffers">Offres</button>
+                    <button class="tab-btn" data-tab="stats" id="tabStats">Statistiques</button>
+                    <button class="tab-btn" data-tab="favorites" id="tabFavorites">Favoris</button>
+                </nav>
+
+                <div class="header-actions">
+                    <!-- Theme Toggle -->
+                    <button class="btn-theme-toggle" id="btnThemeToggle" title="Changer le thème">
+                        <svg class="theme-icon theme-icon-dark" viewBox="0 0 20 20" fill="currentColor" width="18"
+                            height="18">
+                            <path
+                                d="M10 2a1 1 0 011 1v1a1 1 0 01-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 01-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" />
+                        </svg>
+                        <svg class="theme-icon theme-icon-light" viewBox="0 0 20 20" fill="currentColor" width="18"
+                            height="18">
+                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                        </svg>
+                    </button>
+
+                    <!-- User menu (dynamic) -->
+                    <div id="userSlot"></div>
+
+                    <button class="btn btn-primary" id="btnScrape" title="Lancer le scraping">Actualiser</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT -->
+        <main class="main">
+            <!-- SIDEBAR FILTERS -->
+            <button class="sidebar-toggle" id="sidebarToggle">Filtres</button>
+
+            <aside class="sidebar" id="sidebar">
+                <div class="filter-section">
+                    <div class="filter-title">Technologie</div>
+                    <select class="filter-select" id="filterTechnology">
+                        <option value="">Toutes les technologies</option>
+                    </select>
+                </div>
+                <div class="filter-section">
+                    <div class="filter-title">Secteur</div>
+                    <select class="filter-select" id="filterCategory">
+                        <option value="">Tous les secteurs</option>
+                    </select>
+                </div>
+                <div class="filter-section">
+                    <div class="filter-title">Localisation</div>
+                    <input type="text" class="filter-input" id="filterLocation" placeholder="Ville, département...">
+                </div>
+
+                <div class="filter-section">
+                    <div class="filter-title">Profil demandé</div>
+                    <select class="filter-select" id="filterProfile">
+                        <option value="">Tous les profils</option>
+                    </select>
+                </div>
+                <div class="filter-section">
+                    <div class="filter-title">Source</div>
+                    <select class="filter-select" id="filterSource">
+                        <option value="">Toutes les sources</option>
+                    </select>
+                </div>
+                <div class="filter-section">
+                    <div class="filter-title">Date de publication</div>
+                    <div class="date-quick-filters">
+                        <button class="date-chip" data-filter="today">Aujourd'hui</button>
+                        <button class="date-chip" data-filter="week">Cette semaine</button>
+                        <button class="date-chip" data-filter="month">Ce mois</button>
+                        <button class="date-chip active" data-filter="">Toutes</button>
+                    </div>
+                </div>
+                <div class="filter-section filter-actions">
+                    <button class="btn-reset" id="btnReset">Réinitialiser les filtres</button>
+                </div>
+            </aside>
+
+            <!-- CONTENT: Tab Offers -->
+            <section class="content" id="contentOffers">
+                <div class="stats-bar" id="statsBar">
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3 id="statTotal">–</h3>
+                            <p>Offres totales</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3 id="statIT">–</h3>
+                            <p>Offres IT</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3 id="statRecent">–</h3>
+                            <p>Dernières 24h</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3 id="statSources">–</h3>
+                            <p>Sources actives</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="toolbar">
+                    <div class="results-count" id="resultsCount">Chargement...</div>
+                    <div class="sort-controls">
+                        <span class="sort-label">Trier par :</span>
+                        <select class="sort-select" id="sortSelect">
+                            <option value="date-desc">Plus récentes</option>
+                            <option value="date-asc">Plus anciennes</option>
+                            <option value="title-asc">Titre A-Z</option>
+                            <option value="title-desc">Titre Z-A</option>
+                            <option value="company-asc">Entreprise A-Z</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="offers-grid" id="offersGrid">
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                    <div class="skeleton skeleton-card"></div>
+                </div>
+
+                <div class="pagination" id="pagination"></div>
+            </section>
+
+            <!-- CONTENT: Tab Statistics -->
+            <section class="content content-stats hidden" id="contentStats">
+                <div class="stats-page">
+                    <div class="stats-header">
+                        <h2>Statistiques</h2>
+                        <p class="stats-subtitle" id="statsSubtitle">Chargement...</p>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stats-panel">
+                            <h3 class="stats-panel-title">Langages de programmation</h3>
+                            <div class="stats-bars" id="chartLanguages">
+                                <div class="stats-loading">Chargement...</div>
+                            </div>
+                        </div>
+                        <div class="stats-panel">
+                            <h3 class="stats-panel-title">Top Entreprises</h3>
+                            <div class="stats-bars" id="chartCompanies">
+                                <div class="stats-loading">Chargement...</div>
+                            </div>
+                        </div>
+                        <div class="stats-panel">
+                            <h3 class="stats-panel-title">Top Départements</h3>
+                            <div class="stats-bars" id="chartDepartments">
+                                <div class="stats-loading">Chargement...</div>
+                            </div>
+                        </div>
+                        <div class="stats-panel">
+                            <h3 class="stats-panel-title">Top Secteurs</h3>
+                            <div class="stats-bars" id="chartCategories">
+                                <div class="stats-loading">Chargement...</div>
+                            </div>
+                        </div>
+                        <div class="stats-panel">
+                            <h3 class="stats-panel-title">Frameworks & Librairies</h3>
+                            <div class="stats-bars" id="chartFrameworks">
+                                <div class="stats-loading">Chargement...</div>
+                            </div>
+                        </div>
+                        <div class="stats-panel">
+                            <h3 class="stats-panel-title">Outils & Plateformes</h3>
+                            <div class="stats-bars" id="chartTools">
+                                <div class="stats-loading">Chargement...</div>
+                            </div>
+                        </div>
+                        <div class="stats-panel">
+                            <h3 class="stats-panel-title">Méthodologies</h3>
+                            <div class="stats-bars" id="chartMethodologies">
+                                <div class="stats-loading">Chargement...</div>
+                            </div>
+                        </div>
+                        <div class="stats-panel">
+                            <h3 class="stats-panel-title">Niveaux d'études</h3>
+                            <div class="stats-bars" id="chartEducation">
+                                <div class="stats-loading">Chargement...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CONTENT: Tab Favorites -->
+            <section class="content hidden" id="contentFavorites">
+                <div class="stats-header">
+                    <h2>Mes Favoris</h2>
+                    <p class="stats-subtitle" id="favSubtitle">Connectez-vous pour voir vos favoris</p>
+                </div>
+                <div class="fav-filters" id="favFilters">
+                    <button class="fav-filter-chip active" data-status="">Tous</button>
+                    <button class="fav-filter-chip" data-status="to_apply">A postuler</button>
+                    <button class="fav-filter-chip" data-status="applied">Postulé</button>
+                    <button class="fav-filter-chip" data-status="rejected">Refusé</button>
+                </div>
+                <div class="offers-grid" id="favGrid">
+                    <div class="empty-state">
+                        <div class="empty-title">Aucun favori</div>
+                        <div class="empty-text">Ajoutez des offres à vos favoris pour les retrouver ici.</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle"></h2>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-company" id="modalCompany"></div>
+
+
+
+            <div class="modal-info-grid" id="modalInfoGrid"></div>
+
+            <div class="modal-skills" id="modalSkills" style="display:none;">
+                <h3>Compétences & Technologies</h3>
+                <div class="modal-skills-grid" id="modalSkillsGrid"></div>
+            </div>
+
+            <div class="modal-description">
+                <h3>Description du poste</h3>
+                <p id="modalDescription"></p>
+            </div>
+            <div class="modal-actions">
+                <a class="btn btn-primary" id="modalLink" href="#" target="_blank" rel="noopener">
+                    Voir l'offre originale
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="js/api.js"></script>
+    <script src="js/filters.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

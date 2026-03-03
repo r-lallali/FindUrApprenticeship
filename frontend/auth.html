@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FUA - Connexion et inscription">
+    <title>FUA – Connexion</title>
+    <link rel="icon" type="image/png" href="img/logo-inv.png">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="auth-page">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <img src="img/logo.png" alt="FUA Logo" class="logo-icon-img">
+                <div>
+                    <div class="logo-text">FUA</div>
+                    <div class="logo-subtitle">Find Ur Alternance</div>
+                </div>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" class="auth-form">
+                <h2 class="auth-title">Connexion</h2>
+
+                <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" placeholder="votre@email.com" required autocomplete="email">
+                </div>
+
+                <div class="form-group">
+                    <label for="loginPassword">Mot de passe</label>
+                    <input type="password" id="loginPassword" placeholder="Votre mot de passe" required
+                        autocomplete="current-password">
+                </div>
+
+                <div class="auth-error" id="loginError"></div>
+
+                <button type="submit" class="btn btn-primary auth-submit">Se connecter</button>
+
+                <p class="auth-switch">
+                    Pas encore de compte ?
+                    <a href="#" id="showRegister">Créer un compte</a>
+                </p>
+            </form>
+
+            <!-- Register Form -->
+            <form id="registerForm" class="auth-form" style="display: none;">
+                <h2 class="auth-title">Créer un compte</h2>
+
+                <div class="form-group">
+                    <label for="registerUsername">Pseudo</label>
+                    <input type="text" id="registerUsername" placeholder="Votre pseudo" required minlength="2"
+                        autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="registerEmail">Email</label>
+                    <input type="email" id="registerEmail" placeholder="votre@email.com" required autocomplete="email">
+                </div>
+
+                <div class="form-group">
+                    <label for="registerPassword">Mot de passe</label>
+                    <input type="password" id="registerPassword" placeholder="6 caractères minimum" required
+                        minlength="6" autocomplete="new-password">
+                </div>
+
+                <div class="auth-error" id="registerError"></div>
+
+                <button type="submit" class="btn btn-primary auth-submit">Créer mon compte</button>
+
+                <p class="auth-switch">
+                    Déjà un compte ?
+                    <a href="#" id="showLogin">Se connecter</a>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Apply saved theme
+        const savedTheme = localStorage.getItem('fua-theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        const loginForm = document.getElementById('loginForm');
+        const registerForm = document.getElementById('registerForm');
+
+        document.getElementById('showRegister').addEventListener('click', (e) => {
+            e.preventDefault();
+            loginForm.style.display = 'none';
+            registerForm.style.display = 'block';
+        });
+
+        document.getElementById('showLogin').addEventListener('click', (e) => {
+            e.preventDefault();
+            registerForm.style.display = 'none';
+            loginForm.style.display = 'block';
+        });
+
+        // If already logged in, redirect
+        if (localStorage.getItem('fua-token')) {
+            window.location.href = '/';
+        }
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errorEl = document.getElementById('loginError');
+            errorEl.textContent = '';
+
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    errorEl.textContent = data.detail || 'Erreur de connexion';
+                    return;
+                }
+                localStorage.setItem('fua-token', data.access_token);
+                localStorage.setItem('fua-user', JSON.stringify(data.user));
+                window.location.href = '/';
+            } catch (err) {
+                errorEl.textContent = 'Erreur de connexion au serveur';
+            }
+        });
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errorEl = document.getElementById('registerError');
+            errorEl.textContent = '';
+
+            const username = document.getElementById('registerUsername').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    errorEl.textContent = data.detail || "Erreur lors de l'inscription";
+                    return;
+                }
+                localStorage.setItem('fua-token', data.access_token);
+                localStorage.setItem('fua-user', JSON.stringify(data.user));
+                window.location.href = '/';
+            } catch (err) {
+                errorEl.textContent = 'Erreur de connexion au serveur';
+            }
+        });
+    </script>
+</body>
+
+</html>

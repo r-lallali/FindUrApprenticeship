@@ -1,0 +1,255 @@
+"""
+Scraper for La Bonne Alternance API.
+
+Documentation: https://labonnealternance.apprentissage.beta.gouv.fr/api/docs
+This is an official French government API providing alternance offers.
+"""
+
+import httpx
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+from scrapers.base_scraper import BaseScraper
+from scrapers.utils import is_school_offer, clean_text, enrich_location, normalize_profile, normalize_salary
+
+
+class LaBonneAlternanceScraper(BaseScraper):
+    """Scraper using the La Bonne Alternance API."""
+
+    BASE_URL = "https://labonnealternance.apprentissage.beta.gouv.fr/api"
+    SEARCH_URL = f"{BASE_URL}/v1/jobsEtFormations"
+
+    # Major French cities with their INSEE codes for broader coverage
+    CITIES = [
+        {"name": "Paris", "insee": "75056", "lat": 48.8566, "lon": 2.3522},
+        {"name": "Lyon", "insee": "69123", "lat": 45.7640, "lon": 4.8357},
+        {"name": "Marseille", "insee": "13055", "lat": 43.2965, "lon": 5.3698},
+        {"name": "Toulouse", "insee": "31555", "lat": 43.6047, "lon": 1.4442},
+        {"name": "Lille", "insee": "59350", "lat": 50.6292, "lon": 3.0573},
+        {"name": "Bordeaux", "insee": "33063", "lat": 44.8378, "lon": -0.5792},
+        {"name": "Nantes", "insee": "44109", "lat": 47.2184, "lon": -1.5536},
+        {"name": "Strasbourg", "insee": "67482", "lat": 48.5734, "lon": 7.7521},
+        {"name": "Rennes", "insee": "35238", "lat": 48.1173, "lon": -1.6778},
+        {"name": "Montpellier", "insee": "34172", "lat": 43.6108, "lon": 3.8767},
+    ]
+
+    # ROME codes for common alternance sectors
+    ROME_CODES = {
+        "informatique": ["M1805", "M1802", "M1803"],
+        "commerce": ["D1406", "D1407", "D1402"],
+        "comptabilite": ["M1203", "M1202"],
+        "communication": ["E1103", "E1101"],
+        "rh": ["M1502", "M1503"],
+        "marketing": ["M1705", "M1703"],
+        "logistique": ["N1301", "N1303"],
+        "banque": ["C1201", "C1202"],
+    }
+
+    def __init__(self):
+        super().__init__("labonnealternance")
+
+    async def scrape(self, **kwargs) -> List[Dict[str, Any]]:
+        """
+        Scrape offers from La Bonne Alternance API.
+
+        Keyword args:
+            cities: list - List of city dicts to search (defaults to CITIES)
+            rome_codes: list - Specific ROME codes to search
+            radius: int - Search radius in km (default: 100)
+        """
+        cities = kwargs.get("cities", self.CITIES[:5])  # Top 5 cities by default
+        radius = kwargs.get("radius", 100)
+        rome_codes = kwargs.get("rome_codes", None)
+
+        # Collect all ROME codes if none specified
+        if rome_codes is None:
+            codes_to_search = []
+            for sector_codes in self.ROME_CODES.values():
+                codes_to_search.extend(sector_codes)
+        else:
+            codes_to_search = rome_codes
+
+        all_offers = []
+        seen_ids = set()
+
+        # Search for each city with batches of ROME codes
+        for city in cities:
+            batch_size = 3
+            for i in range(0, len(codes_to_search), batch_size):
+                batch = codes_to_search[i:i + batch_size]
+                offers = await self._search(
+                    rome_codes=batch,
+                    insee=city["insee"],
+                    latitude=city["lat"],
+                    longitude=city["lon"],
+                    radius=radius,
+                )
+                # Deduplicate within this scrape run
+                for offer in offers:
+                    offer_id = offer.get("id", "")
+                    if offer_id and offer_id not in seen_ids:
+                        seen_ids.add(offer_id)
+                        all_offers.append(offer)
+
+        self.logger.info(f"Total unique raw offers collected: {len(all_offers)}")
+        return all_offers
+
+    async def _search(
+        self,
+        rome_codes: List[str],
+        insee: str,
+        latitude: float,
+        longitude: float,
+        radius: int,
+    ) -> List[Dict[str, Any]]:
+        """Search for offers with the given parameters."""
+        params = {
+            "romes": ",".join(rome_codes),
+            "latitude": latitude,
+            "longitude": longitude,
+            "radius": radius,
+            "insee": insee,
+            "caller": "fua-dashboard",
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(self.SEARCH_URL, params=params)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    offers = []
+
+                    # Extract job offers from nested structure
+                    jobs = data.get("jobs", {})
+                    if isinstance(jobs, dict):
+                        for key in ["peJobs", "matchas", "partnerJobs"]:
+                            sub = jobs.get(key)
+                            if isinstance(sub, dict) and "results" in sub:
+                                offers.extend(sub["results"])
+                            elif isinstance(sub, list):
+                                offers.extend(sub)
+
+                    return offers
+                else:
+                    self.logger.warning(
+                        f"API returned {response.status_code} for ROME {rome_codes}, INSEE {insee}"
+                    )
+                    return []
+
+        except httpx.TimeoutException:
+            self.logger.warning(f"Timeout for ROME {rome_codes}, INSEE {insee}")
+            return []
+        except Exception as e:
+            self.logger.error(f"Error fetching offers: {e}")
+            return []
+
+    def parse_offer(self, raw_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Parse a raw offer from La Bonne Alternance API."""
+        try:
+            idea_type = raw_data.get("ideaType", "")
+
+            # Skip formations (training offers) - we only want job offers
+            if idea_type == "formation":
+                return None
+
+            # Extract title
+            title = raw_data.get("title", "")
+            if not title:
+                return None
+
+            # Extract company info
+            company_data = raw_data.get("company", {})
+            if isinstance(company_data, dict):
+                company_name = company_data.get("name", "Entreprise confidentielle")
+            else:
+                company_name = str(company_data) if company_data else "Entreprise confidentielle"
+
+            if not company_name:
+                company_name = "Entreprise confidentielle"
+
+            # Extract job details
+            job_data = raw_data.get("job", {})
+            if not isinstance(job_data, dict):
+                job_data = {}
+
+            description = job_data.get("description", "")
+
+            # School detection
+            is_school = is_school_offer(company_name, description)
+
+            # Extract location
+            place = raw_data.get("place", {})
+            if isinstance(place, dict):
+                city = place.get("city", "")
+                address = place.get("fullAddress", "")
+                zipcode = place.get("zipCode", "")
+                location = city or address
+                if zipcode and city and zipcode not in city:
+                    location = f"{city} ({zipcode})"
+            else:
+                location = None
+
+            # Contract type
+            contract_type = job_data.get("contractType", "")
+            contract_desc = job_data.get("contractDescription", "")
+            if contract_desc:
+                contract_type = contract_desc
+            elif not contract_type:
+                contract_type = "Alternance"
+
+            # Diploma / profile
+            profile = raw_data.get("target_diploma_level", "")
+            profile = normalize_profile(profile)
+
+            # ROME label as category
+            romes = raw_data.get("romes", [])
+            category = ""
+            if romes and isinstance(romes, list) and len(romes) > 0:
+                if isinstance(romes[0], dict):
+                    category = romes[0].get("label", "")
+                elif isinstance(romes[0], str):
+                    category = romes[0]
+
+            # Publication date
+            pub_date = None
+            date_str = job_data.get("creationDate", "")
+            if date_str:
+                try:
+                    if "T" in str(date_str):
+                        pub_date = datetime.fromisoformat(str(date_str).replace("Z", "+00:00"))
+                    else:
+                        pub_date = datetime.strptime(str(date_str)[:10], "%Y-%m-%d")
+                except (ValueError, TypeError):
+                    pass
+
+            # URL
+            url = raw_data.get("url", "")
+
+            # Unique ID
+            offer_id = raw_data.get("id", "")
+            source_id = f"lba_{idea_type}_{offer_id}" if offer_id else None
+
+            clean_loc = clean_text(location)
+            enriched_loc, dept = enrich_location(clean_loc)
+
+            return {
+                "title": clean_text(title),
+                "company": clean_text(company_name),
+                "location": enriched_loc or clean_loc,
+                "department": dept,
+                "contract_type": contract_type,
+                "salary": None,  # LBA doesn't always provide salary
+                "salary_min": None,
+                "salary_max": None,
+                "description": clean_text(description),
+                "profile": profile,
+                "category": clean_text(category),
+                "publication_date": pub_date,
+                "source": "labonnealternance",
+                "url": url,
+                "source_id": source_id,
+                "is_school": is_school,
+            }
+        except Exception as e:
+            self.logger.warning(f"Error parsing LBA offer: {e}")
+            return None
