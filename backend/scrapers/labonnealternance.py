@@ -248,10 +248,9 @@ class LaBonneAlternanceScraper(BaseScraper):
                     url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type=matcha&itemId={offer_id}"
                 elif idea_type == "peJob":
                     url = f"https://candidat.francetravail.fr/offres/recherche/detail/{offer_id}"
-                elif idea_type == "offres_emploi_partenaires" or idea_type == "partnerJob":
-                    url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type=partnerJob&itemId={offer_id}"
                 else:
-                    url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type={idea_type}&itemId={offer_id}"
+                    # partnerJob, offres_emploi_partenaires, etc.
+                    url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type=partnerJob&itemId={offer_id}"
 
             # Unique ID
             source_id = f"lba_{idea_type}_{offer_id}" if offer_id else None
