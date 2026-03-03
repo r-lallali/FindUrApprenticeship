@@ -11,7 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     initUserUI();
     Filters.init(handleFilterChange);
-    loadStats();
     loadFilters();
     loadOffers();
     initTabs();
@@ -171,16 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>`;
             resultsCount.textContent = 'Erreur de chargement';
         }
-    }
-
-    async function loadStats() {
-        try {
-            const stats = await API.getStats();
-            document.getElementById('statTotal').textContent = formatNumber(stats.total_offers);
-            document.getElementById('statIT').textContent = formatNumber(stats.it_offers || 0);
-            document.getElementById('statRecent').textContent = formatNumber(stats.recent_24h);
-            document.getElementById('statSources').textContent = Object.keys(stats.by_source).length;
-        } catch { }
     }
 
     async function loadFilters() {
