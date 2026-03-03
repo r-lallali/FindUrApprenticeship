@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
             tabBtns.forEach((b) => b.classList.remove('active'));
             const offersTab = document.getElementById('tabOffers');
             if (offersTab) offersTab.classList.add('active');
+
+            const tabsContainer = document.querySelector('.header-tabs');
+            if (tabsContainer) tabsContainer.dataset.activeTab = 'offers';
+
             updateTabIndicator();
 
             document.getElementById('contentOffers').classList.remove('hidden');
@@ -137,6 +141,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (sidebar) sidebar.classList.add('hidden');
                     loadFavorites();
                 }
+
+                const tabsContainer = document.querySelector('.header-tabs');
+                if (tabsContainer) tabsContainer.dataset.activeTab = tab;
 
                 updateTabIndicator();
             });
