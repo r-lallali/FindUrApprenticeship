@@ -311,6 +311,12 @@ async def get_offers(
     """Get paginated and filtered offers."""
     query = _base_query(db)
 
+    # Auto-expire: only show offers from the last 3 months
+    three_months_ago = datetime.utcnow() - timedelta(days=90)
+    query = query.filter(
+        Offer.publication_date >= three_months_ago
+    )
+
     # Exclude offers favorited by the current user
     if user:
         query = query.filter(
