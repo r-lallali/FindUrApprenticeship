@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
-    title="Find Ur Alternance",
+    title="FUA - Find Ur Alternance",
     description="Agrégateur d'offres d'alternance en France",
     version="1.0.0",
 )
