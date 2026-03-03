@@ -428,12 +428,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             loading.style.display = 'block';
-            loading.textContent = 'Chargement...';
+            loading.textContent = 'Chargement des données...';
 
-            // Cache management
             if (!cachedTimelineData[currentTimelineScale]) {
                 const data = await API.getTimelineStats(currentTimelineScale);
-                // Ensure we got an array
                 cachedTimelineData[currentTimelineScale] = Array.isArray(data) ? data : [];
             }
 
@@ -444,232 +442,180 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderTimelineChart(data, currentTimelineScale);
             } else {
                 loading.style.display = 'block';
-                loading.textContent = 'Aucune donnée disponible.';
+                loading.textContent = 'Aucune donnée d\'évolution disponible.';
             }
         } catch (err) {
-            console.error('Timeline chart error:', err);
+            console.error('Timeline loading error:', err);
             loading.style.display = 'block';
             loading.textContent = 'Erreur de chargement.';
         }
     }
 
+    // Singleton cleanup for chart listeners
+    let timelineResizeListener = null;
+    let timelineObserver = null;
+
     function renderTimelineChart(data, scale = 'month') {
         const container = document.getElementById('timelineChartContainer');
-        const canvas = document.getElementById('timelineCanvas');
+        const originalCanvas = document.getElementById('timelineCanvas');
         const tooltip = document.getElementById('timelineTooltip');
-        if (!canvas || !data || data.length === 0) return;
+        if (!container || !originalCanvas || !data || data.length === 0) return;
+
+        // Clean up old canvas to remove ALL event listeners
+        const canvas = originalCanvas.cloneNode(true);
+        originalCanvas.parentNode.replaceChild(canvas, originalCanvas);
 
         const ctx = canvas.getContext('2d');
         const dpr = window.devicePixelRatio || 1;
-
         const MONTH_NAMES_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
-        function resize() {
-            const rect = container.getBoundingClientRect();
-            canvas.width = rect.width * dpr;
-            canvas.height = 280 * dpr;
-            canvas.style.width = rect.width + 'px';
-            canvas.style.height = '280px';
-            ctx.scale(dpr, dpr);
+        function formatLabel(periodStr) {
+            if (!periodStr || typeof periodStr !== 'string' || !periodStr.includes('-')) return periodStr || '';
+            try {
+                const parts = periodStr.split('-');
+                const year = parts[0];
+                const value = parseInt(parts[1], 10);
+                if (scale === 'week') return `S${value} ${year}`;
+                if (value >= 1 && value <= 12) return `${MONTH_NAMES_FR[value - 1]} ${year}`;
+                return periodStr;
+            } catch { return periodStr; }
         }
 
         function getThemeColors() {
             const style = getComputedStyle(document.documentElement);
             return {
                 line: style.getPropertyValue('--accent-primary').trim() || '#3b82f6',
-                lineLight: style.getPropertyValue('--accent-primary-light').trim() || '#60a5fa',
                 text: style.getPropertyValue('--text-muted').trim() || '#666',
-                textSecondary: style.getPropertyValue('--text-secondary').trim() || '#a3a3a3',
                 grid: style.getPropertyValue('--border').trim() || '#1f1f1f',
                 bg: style.getPropertyValue('--bg-card').trim() || '#111',
-                textPrimary: style.getPropertyValue('--text-primary').trim() || '#f5f5f5',
             };
         }
 
-        function formatLabel(periodStr) {
-            if (scale === 'week') {
-                const [year, week] = periodStr.split('-');
-                return `S${week} ${year}`;
-            }
-            const [year, month] = periodStr.split('-');
-            return `${MONTH_NAMES_FR[parseInt(month, 10) - 1]} ${year}`;
-        }
+        let chartPoints = [];
 
         function draw() {
-            resize();
-            const colors = getThemeColors();
-            const w = canvas.width / dpr;
-            const h = canvas.height / dpr;
+            try {
+                const rect = container.getBoundingClientRect();
+                canvas.width = rect.width * dpr;
+                canvas.height = 280 * dpr;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = '280px';
+                ctx.scale(dpr, dpr);
 
-            const padding = { top: 20, right: 20, bottom: 40, left: 50 };
-            const chartW = w - padding.left - padding.right;
-            const chartH = h - padding.top - padding.bottom;
+                const w = canvas.width / dpr;
+                const h = canvas.height / dpr;
+                const padding = { top: 20, right: 30, bottom: 40, left: 50 };
+                const chartW = w - padding.left - padding.right;
+                const chartH = h - padding.top - padding.bottom;
+                const colors = getThemeColors();
 
-            ctx.clearRect(0, 0, w, h);
+                ctx.clearRect(0, 0, w, h);
 
-            const counts = data.map(d => d.count);
-            const maxCount = Math.max(...counts);
-            const minCount = 0;
-            const range = maxCount - minCount || 1;
+                const counts = data.map(d => d.count || 0);
+                const maxCount = Math.max(...counts, 1);
+                const range = maxCount;
 
-            // Y-axis grid lines and labels
-            const yTicks = 5;
-            ctx.textAlign = 'right';
-            ctx.textBaseline = 'middle';
-            ctx.font = '11px Inter, sans-serif';
+                // Y Grid & labels
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.font = '11px Inter, sans-serif';
+                for (let i = 0; i <= 5; i++) {
+                    const val = Math.round((range * i) / 5);
+                    const y = padding.top + chartH - (chartH * i) / 5;
+                    ctx.strokeStyle = colors.grid;
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.moveTo(padding.left, y);
+                    ctx.lineTo(w - padding.right, y);
+                    ctx.stroke();
+                    ctx.fillStyle = colors.text;
+                    ctx.fillText(val.toLocaleString('fr-FR'), padding.left - 8, y);
+                }
 
-            for (let i = 0; i <= yTicks; i++) {
-                const val = Math.round(minCount + (range * i) / yTicks);
-                const y = padding.top + chartH - (chartH * i) / yTicks;
+                chartPoints = data.map((d, i) => ({
+                    x: padding.left + (chartW * i) / (data.length - 1 || 1),
+                    y: padding.top + chartH - (chartH * ((d.count || 0))) / range,
+                    data: d,
+                }));
 
-                ctx.strokeStyle = colors.grid;
-                ctx.lineWidth = 0.5;
+                // Area Gradient
+                const gradient = ctx.createLinearGradient(0, padding.top, 0, h - padding.bottom);
+                gradient.addColorStop(0, colors.line + '30');
+                gradient.addColorStop(1, colors.line + '00');
+
                 ctx.beginPath();
-                ctx.moveTo(padding.left, y);
-                ctx.lineTo(w - padding.right, y);
+                ctx.moveTo(chartPoints[0].x, h - padding.bottom);
+                for (let i = 0; i < chartPoints.length; i++) {
+                    const p = chartPoints[i];
+                    if (i === 0) ctx.lineTo(p.x, p.y);
+                    else {
+                        const prev = chartPoints[i - 1];
+                        const cpx = (prev.x + p.x) / 2;
+                        ctx.bezierCurveTo(cpx, prev.y, cpx, p.y, p.x, p.y);
+                    }
+                }
+                ctx.lineTo(chartPoints[chartPoints.length - 1].x, h - padding.bottom);
+                ctx.closePath();
+                ctx.fillStyle = gradient;
+                ctx.fill();
+
+                // Path
+                ctx.beginPath();
+                ctx.moveTo(chartPoints[0].x, chartPoints[0].y);
+                for (let i = 1; i < chartPoints.length; i++) {
+                    const prev = chartPoints[i - 1];
+                    const p = chartPoints[i];
+                    const cpx = (prev.x + p.x) / 2;
+                    ctx.bezierCurveTo(cpx, prev.y, cpx, p.y, p.x, p.y);
+                }
+                ctx.strokeStyle = colors.line;
+                ctx.lineWidth = 2.5;
                 ctx.stroke();
 
+                // X labels
+                const step = Math.max(1, Math.ceil(data.length / Math.floor(chartW / 80)));
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
                 ctx.fillStyle = colors.text;
-                ctx.fillText(val.toLocaleString('fr-FR'), padding.left - 8, y);
-            }
-
-            // Calculate points
-            const points = data.map((d, i) => ({
-                x: padding.left + (chartW * i) / (data.length - 1 || 1),
-                y: padding.top + chartH - (chartH * (d.count - minCount)) / range,
-                data: d,
-            }));
-
-            // Gradient fill
-            const gradient = ctx.createLinearGradient(0, padding.top, 0, h - padding.bottom);
-            gradient.addColorStop(0, colors.line + '40');
-            gradient.addColorStop(1, colors.line + '05');
-
-            // Draw area
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, h - padding.bottom);
-            ctx.lineTo(points[0].x, points[0].y);
-            for (let i = 1; i < points.length; i++) {
-                const prev = points[i - 1];
-                const curr = points[i];
-                const cpx = (prev.x + curr.x) / 2;
-                ctx.bezierCurveTo(cpx, prev.y, cpx, curr.y, curr.x, curr.y);
-            }
-            ctx.lineTo(points[points.length - 1].x, h - padding.bottom);
-            ctx.closePath();
-            ctx.fillStyle = gradient;
-            ctx.fill();
-
-            // Draw line
-            ctx.beginPath();
-            ctx.moveTo(points[0].x, points[0].y);
-            for (let i = 1; i < points.length; i++) {
-                const prev = points[i - 1];
-                const curr = points[i];
-                const cpx = (prev.x + curr.x) / 2;
-                ctx.bezierCurveTo(cpx, prev.y, cpx, curr.y, curr.x, curr.y);
-            }
-            ctx.strokeStyle = colors.line;
-            ctx.lineWidth = 2.5;
-            ctx.stroke();
-
-            // Draw dots
-            points.forEach(p => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-                ctx.fillStyle = colors.line;
-                ctx.fill();
-            });
-
-            // X-axis labels (show a subset to avoid overlap)
-            const maxLabels = Math.floor(chartW / 70);
-            const step = Math.max(1, Math.ceil(data.length / maxLabels));
-
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'top';
-            ctx.font = '10px Inter, sans-serif';
-            ctx.fillStyle = colors.text;
-
-            for (let i = 0; i < data.length; i += step) {
-                const p = points[i];
-                ctx.fillText(formatLabel(data[i].period), p.x, h - padding.bottom + 8);
-            }
-            // Always show last label
-            if ((data.length - 1) % step !== 0) {
-                const last = points[points.length - 1];
-                ctx.fillText(formatLabel(data[data.length - 1].period), last.x, h - padding.bottom + 8);
-            }
-
-            return points;
+                for (let i = 0; i < data.length; i += step) {
+                    ctx.fillText(formatLabel(data[i].period), chartPoints[i].x, h - padding.bottom + 10);
+                }
+            } catch (e) { console.error("Chart draw error:", e); }
         }
 
-        let chartPoints = draw();
+        draw();
 
-        // Tooltip handling
+        // Mouse Interactivity
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left;
-            const my = e.clientY - rect.top;
-
+            const mouseX = e.clientX - rect.left;
             let closest = null;
             let closestDist = Infinity;
             for (const p of chartPoints) {
-                const dist = Math.abs(mx - p.x);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closest = p;
-                }
+                const d = Math.abs(mouseX - p.x);
+                if (d < closestDist) { closestDist = d; closest = p; }
             }
-
             if (closest && closestDist < 30) {
                 tooltip.style.display = 'block';
-                const containerRect = container.getBoundingClientRect();
-                const tooltipRect = tooltip.getBoundingClientRect();
-
-                let left = closest.x + 12;
-                let top = closest.y - 10;
-
-                if (left + tooltipRect.width > containerRect.width - 10) {
-                    left = closest.x - tooltipRect.width - 12;
-                }
-                if (top < 0) top = 10;
-
-                tooltip.style.left = left + 'px';
-                tooltip.style.top = top + 'px';
                 tooltip.innerHTML = `<strong>${formatLabel(closest.data.period)}</strong><br>${closest.data.count} offres`;
-
-                // Highlight point without full redraw for performance
-                const colors = getThemeColors();
-                const ctx2 = canvas.getContext('2d');
-                // We'd ideally need to clear the previous highlight, but for simple canvas it's okay for now
-                ctx2.beginPath();
-                ctx2.arc(closest.x, closest.y, 6, 0, Math.PI * 2);
-                ctx2.fillStyle = colors.line;
-                ctx2.fill();
-                ctx2.beginPath();
-                ctx2.arc(closest.x, closest.y, 3, 0, Math.PI * 2);
-                ctx2.fillStyle = colors.bg;
-                ctx2.fill();
-            } else {
-                tooltip.style.display = 'none';
-            }
+                const tRect = tooltip.getBoundingClientRect();
+                const cRect = container.getBoundingClientRect();
+                let tx = closest.x + 10;
+                let ty = closest.y - 10;
+                if (tx + tRect.width > cRect.width) tx = closest.x - tRect.width - 10;
+                tooltip.style.left = tx + 'px';
+                tooltip.style.top = ty + 'px';
+            } else { tooltip.style.display = 'none'; }
         });
+        canvas.addEventListener('mouseleave', () => tooltip.style.display = 'none');
 
-        canvas.addEventListener('mouseleave', () => {
-            tooltip.style.display = 'none';
-            chartPoints = draw();
-        });
-
-        // Redraw on resize
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => { chartPoints = draw(); }, 100);
-        });
-
-        // Redraw on theme change
-        const observer = new MutationObserver(() => { chartPoints = draw(); });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        // Global listeners
+        if (timelineResizeListener) window.removeEventListener('resize', timelineResizeListener);
+        timelineResizeListener = draw;
+        window.addEventListener('resize', timelineResizeListener);
+        if (timelineObserver) timelineObserver.disconnect();
+        timelineObserver = new MutationObserver(draw);
+        timelineObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     }
 
     function renderBarChart(containerId, data, cssClass, filterType) {

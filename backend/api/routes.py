@@ -750,8 +750,8 @@ async def get_timeline_stats(
                 Offer.publication_date.isnot(None),
                 Offer.publication_date >= cutoff,
             )
-            .group_by("period")
-            .order_by("period")
+            .group_by(group_expr)
+            .order_by(group_expr)
             .all()
         )
 
