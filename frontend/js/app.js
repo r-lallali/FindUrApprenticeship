@@ -26,6 +26,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnScrape) btnScrape.addEventListener('click', handleScrape);
     checkScrapeStatus(); // Check if scrape already running in background
 
+    // Background preloading of stats for instant access
+    setTimeout(() => {
+        loadTechStats(true); // silent = true
+    }, 500);
+
     const headerLogo = document.getElementById('headerLogo');
     if (headerLogo) {
         headerLogo.addEventListener('click', () => {
@@ -121,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (tab === 'stats') {
                     document.getElementById('contentStats').classList.remove('hidden');
                     if (sidebar) sidebar.classList.add('hidden');
+                    // Always refresh/ensure stats are loaded, but it will be instant if already cached
                     loadTechStats();
                 } else if (tab === 'favorites') {
                     document.getElementById('contentFavorites').classList.remove('hidden');
@@ -363,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== TECH STATISTICS =====
 
-    async function loadTechStats() {
+    async function loadTechStats(silent = false) {
         try {
             if (!cachedTechStats) cachedTechStats = await API.getTechStats();
             if (!cachedGeneralStats) cachedGeneralStats = await API.getStats();
@@ -373,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
             // Load timeline chart
-            loadTimelineChart();
+            loadTimelineChart(silent);
 
             renderBarChart('chartCompanies', stats.top_companies, 'fw', 'keyword');
             renderBarChart('chartDepartments', stats.top_departments, 'tool', 'department');
@@ -420,13 +426,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function loadTimelineChart() {
+    async function loadTimelineChart(silent = false) {
         const loading = document.getElementById('timelineLoading');
         if (!loading) return;
 
         try {
-            loading.style.display = 'block';
-            loading.textContent = 'Chargement des données...';
+            if (!silent) {
+                loading.style.display = 'block';
+                loading.textContent = 'Chargement des données...';
+            }
 
             if (!cachedTimelineData[currentTimelineScale]) {
                 const data = await API.getTimelineStats(currentTimelineScale);
