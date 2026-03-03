@@ -6,17 +6,21 @@
 document.addEventListener('DOMContentLoaded', () => {
     // State
     let currentModalOffer = null;
+    let currentTimelineScale = 'month';
+    let cachedTimelineData = {};
+    let cachedTechStats = null;
+    let cachedGeneralStats = null;
 
     // ===== INITIALIZATION =====
     initTheme();
     initUserUI();
-    initTimelineControls();
     Filters.init(handleFilterChange);
     loadFilters();
     loadOffers();
     initTabs();
     initModal();
     initFavFilters();
+    initTimelineControls();
 
     const btnScrape = document.getElementById('btnScrape');
     if (btnScrape) btnScrape.addEventListener('click', handleScrape);
@@ -358,9 +362,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ===== TECH STATISTICS =====
-    let cachedTechStats = null;
-    let cachedGeneralStats = null;
-    let cachedTimelineStats = null;
 
     async function loadTechStats() {
         try {
@@ -397,52 +398,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ===== TIMELINE CHART =====
-    let currentTimelineScale = 'month';
-    let cachedTimelineData = {}; // scale -> data map
 
     function initTimelineControls() {
-        const btns = document.querySelectorAll('.btn-scale');
-        btns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const scale = btn.dataset.scale;
-                if (scale === currentTimelineScale) return;
+        // Use event delegation or direct naming for reliability
+        const container = document.querySelector('.timeline-controls');
+        if (!container) return;
 
-                btns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-scale');
+            if (!btn) return;
 
-                currentTimelineScale = scale;
-                loadTimelineChart();
-            });
+            const scale = btn.dataset.scale;
+            if (scale === currentTimelineScale) return;
+
+            // UI Update
+            const btns = container.querySelectorAll('.btn-scale');
+            btns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // State Update
+            currentTimelineScale = scale;
+            loadTimelineChart();
         });
     }
 
     async function loadTimelineChart() {
         const loading = document.getElementById('timelineLoading');
-        const canvas = document.getElementById('timelineCanvas');
         if (!loading) return;
 
         try {
             loading.style.display = 'block';
-            loading.textContent = 'Analyse des données...';
+            loading.textContent = 'Chargement...';
 
+            // Cache management
             if (!cachedTimelineData[currentTimelineScale]) {
                 const data = await API.getTimelineStats(currentTimelineScale);
-                cachedTimelineData[currentTimelineScale] = data;
+                // Ensure we got an array
+                cachedTimelineData[currentTimelineScale] = Array.isArray(data) ? data : [];
             }
 
             const data = cachedTimelineData[currentTimelineScale];
 
-            loading.style.display = 'none';
             if (data && data.length > 0) {
+                loading.style.display = 'none';
                 renderTimelineChart(data, currentTimelineScale);
             } else {
                 loading.style.display = 'block';
                 loading.textContent = 'Aucune donnée disponible.';
             }
         } catch (err) {
-            console.error('Timeline error:', err);
+            console.error('Timeline chart error:', err);
             loading.style.display = 'block';
-            loading.textContent = 'Erreur de chargement des statistiques.';
+            loading.textContent = 'Erreur de chargement.';
         }
     }
 

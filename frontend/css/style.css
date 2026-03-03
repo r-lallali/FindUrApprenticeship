@@ -1368,11 +1368,12 @@ a:hover {
 
 .stats-panel-header {
     display: flex !important;
+    flex-direction: row !important;
     justify-content: space-between !important;
     align-items: center !important;
+    gap: 16px !important;
     margin-bottom: 24px !important;
-    gap: 12px !important;
-    flex-direction: row !important;
+    width: 100% !important;
     flex-wrap: nowrap !important;
 }
 
@@ -1387,40 +1388,36 @@ a:hover {
 
 .timeline-controls {
     display: flex !important;
-    background: #1a1a1a !important;
-    /* Force a dark specific background */
+    background: rgba(0, 0, 0, 0.2) !important;
     padding: 3px !important;
-    border-radius: 12px !important;
-    border: 1px solid #333 !important;
+    border-radius: 10px !important;
+    border: 1px solid var(--border) !important;
     flex-shrink: 0 !important;
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2) !important;
 }
 
 .btn-scale {
-    padding: 5px 14px !important;
+    padding: 6px 16px !important;
     border: none !important;
     background: transparent !important;
-    color: #888 !important;
+    color: var(--text-muted) !important;
     font-size: 11px !important;
     font-weight: 700 !important;
     cursor: pointer !important;
-    border-radius: 9px !important;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    border-radius: 8px !important;
+    transition: all 0.2s ease !important;
     text-transform: uppercase !important;
     letter-spacing: 0.5px !important;
     white-space: nowrap !important;
 }
 
 .btn-scale:hover:not(.active) {
-    color: #fff !important;
-    background: rgba(255, 255, 255, 0.05) !important;
+    color: var(--text-primary) !important;
 }
 
 .btn-scale.active {
-    background: #3b82f6 !important;
-    /* Force blue */
+    background: var(--accent-primary) !important;
     color: #ffffff !important;
-    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4) !important;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3) !important;
 }
 
 .stats-bars {

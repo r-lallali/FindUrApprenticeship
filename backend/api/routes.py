@@ -726,8 +726,8 @@ async def get_timeline_stats(
         days_back = 365 * 10 if scale == "month" else 365 * 2
         cutoff = datetime.utcnow() - timedelta(days=days_back)
 
-        dialect = db.bind.dialect.name
-        if dialect == "sqlite":
+        engine_dialect = db.get_bind().dialect.name
+        if engine_dialect == "sqlite":
             if scale == "week":
                 group_expr = func.strftime('%Y-%W', Offer.publication_date)
             else:
@@ -735,6 +735,7 @@ async def get_timeline_stats(
         else:
             # Postgres
             if scale == "week":
+                # ISO week grouping
                 group_expr = func.to_char(Offer.publication_date, 'IYYY-IW')
             else:
                 group_expr = func.to_char(Offer.publication_date, 'YYYY-MM')
@@ -749,8 +750,8 @@ async def get_timeline_stats(
                 Offer.publication_date.isnot(None),
                 Offer.publication_date >= cutoff,
             )
-            .group_by(group_expr)
-            .order_by(group_expr)
+            .group_by("period")
+            .order_by("period")
             .all()
         )
 
