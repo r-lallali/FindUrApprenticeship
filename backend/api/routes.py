@@ -918,10 +918,10 @@ async def fix_school_flags(db: Session = Depends(get_db)):
 @router.post("/admin/fix-urls")
 async def fix_missing_urls(db: Session = Depends(get_db)):
     """Rebuild missing URLs for La Bonne Alternance offers using their source_id."""
-    # LBA source_ids look like: lba_matcha_69a6bb0... or lba_offres_emploi_partenaires_...
+    # 1. Update standard matcha/peJob that are completely missing URLs
     offers = db.query(Offer).filter(
         Offer.source == "labonnealternance",
-        ((Offer.url == None) | (Offer.url == "") | (Offer.url.like("%type=partner&itemId=%")))  # noqa: E711
+        (Offer.url == None) | (Offer.url == "")  # noqa: E711
     ).all()
     
     updated = 0
@@ -929,21 +929,27 @@ async def fix_missing_urls(db: Session = Depends(get_db)):
         if offer.source_id and offer.source_id.startswith("lba_"):
             parts = offer.source_id.split("_")
             if len(parts) >= 3:
-                # e.g., lba_matcha_123 -> parts = ["lba", "matcha", "123"]
-                # For offres_emploi_partenaires: lba_offres_emploi_partenaires_123
                 offer_id = parts[-1]
                 idea_type = "_".join(parts[1:-1])
                 
                 if idea_type == "matcha":
                     offer.url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type=matcha&itemId={offer_id}"
+                    updated += 1
                 elif idea_type == "peJob":
                     offer.url = f"https://candidat.francetravail.fr/offres/recherche/detail/{offer_id}"
-                elif idea_type == "offres_emploi_partenaires" or idea_type == "partnerJob":
-                    offer.url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type=partnerJob&itemId={offer_id}"
-                else:
-                    offer.url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type={idea_type}&itemId={offer_id}"
-                updated += 1
+                    updated += 1
+
+    # 2. Revert broken "partner" or "partnerJob" fallbacks to None, 
+    # since LBA frontend shows an empty page for them.
+    broken_offers = db.query(Offer).filter(
+        Offer.source == "labonnealternance",
+        (Offer.url.like("%type=partner%"))
+    ).all()
+    
+    for offer in broken_offers:
+        offer.url = None
+        updated += 1
                 
     db.commit()
-    return {"updated": updated, "message": f"{updated} URLs corrigées pour La Bonne Alternance."}
+    return {"updated": updated, "message": f"{updated} URLs corrigées ou retirées pour La Bonne Alternance."}
 
