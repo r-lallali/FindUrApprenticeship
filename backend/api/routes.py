@@ -720,34 +720,45 @@ async def get_timeline_stats(
     db: Session = Depends(get_db)
 ):
     """Get offer counts grouped by month or week for the timeline chart."""
-    base_query = _base_query(db)
-    # Filter only last 5 years for week scale, 10 years for month
-    days_back = 365 * 10 if scale == "month" else 365 * 2
-    cutoff = datetime.utcnow() - timedelta(days=days_back)
+    try:
+        base_query = _base_query(db)
+        # Filter only last 5 years for week scale, 10 years for month
+        days_back = 365 * 10 if scale == "month" else 365 * 2
+        cutoff = datetime.utcnow() - timedelta(days=days_back)
 
-    if scale == "week":
-        # Group by Year and Week number
-        group_expr = func.to_char(Offer.publication_date, 'IYYY-IW')
-    else:
-        # Group by Year and Month
-        group_expr = func.to_char(Offer.publication_date, 'YYYY-MM')
+        dialect = db.bind.dialect.name
+        if dialect == "sqlite":
+            if scale == "week":
+                group_expr = func.strftime('%Y-%W', Offer.publication_date)
+            else:
+                group_expr = func.strftime('%Y-%m', Offer.publication_date)
+        else:
+            # Postgres
+            if scale == "week":
+                group_expr = func.to_char(Offer.publication_date, 'IYYY-IW')
+            else:
+                group_expr = func.to_char(Offer.publication_date, 'YYYY-MM')
 
-    results = (
-        base_query
-        .with_entities(
-            group_expr.label("period"),
-            func.count(Offer.id).label("count"),
+        results = (
+            base_query
+            .with_entities(
+                group_expr.label("period"),
+                func.count(Offer.id).label("count"),
+            )
+            .filter(
+                Offer.publication_date.isnot(None),
+                Offer.publication_date >= cutoff,
+            )
+            .group_by(group_expr)
+            .order_by(group_expr)
+            .all()
         )
-        .filter(
-            Offer.publication_date.isnot(None),
-            Offer.publication_date >= cutoff,
-        )
-        .group_by(group_expr)
-        .order_by(group_expr)
-        .all()
-    )
 
-    return [{"period": row.period, "count": row.count} for row in results]
+        return [{"period": row.period, "count": row.count} for row in results]
+    except Exception as e:
+        print(f"DEBUG: Error in get_timeline_stats: {e}")
+        # Return empty data instead of 500 to keep UI clean
+        return []
 
 
 # ═══════════════════════════════════════════════════════

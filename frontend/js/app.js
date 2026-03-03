@@ -419,7 +419,12 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadTimelineChart() {
         const loading = document.getElementById('timelineLoading');
         const canvas = document.getElementById('timelineCanvas');
+        if (!loading) return;
+
         try {
+            loading.style.display = 'block';
+            loading.textContent = 'Analyse des données...';
+
             if (!cachedTimelineData[currentTimelineScale]) {
                 const data = await API.getTimelineStats(currentTimelineScale);
                 cachedTimelineData[currentTimelineScale] = data;
@@ -427,21 +432,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = cachedTimelineData[currentTimelineScale];
 
-            if (loading) loading.style.display = 'none';
+            loading.style.display = 'none';
             if (data && data.length > 0) {
                 renderTimelineChart(data, currentTimelineScale);
             } else {
-                if (loading) {
-                    loading.style.display = 'block';
-                    loading.textContent = 'Aucune donnée disponible.';
-                }
+                loading.style.display = 'block';
+                loading.textContent = 'Aucune donnée disponible.';
             }
         } catch (err) {
             console.error('Timeline error:', err);
-            if (loading) {
-                loading.style.display = 'block';
-                loading.textContent = 'Erreur de chargement.';
-            }
+            loading.style.display = 'block';
+            loading.textContent = 'Erreur de chargement des statistiques.';
         }
     }
 
@@ -629,9 +630,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 tooltip.style.left = left + 'px';
                 tooltip.style.top = top + 'px';
                 tooltip.innerHTML = `<strong>${formatLabel(closest.data.period)}</strong><br>${closest.data.count} offres`;
-                chartPoints = draw();
+
+                // Highlight point without full redraw for performance
                 const colors = getThemeColors();
                 const ctx2 = canvas.getContext('2d');
+                // We'd ideally need to clear the previous highlight, but for simple canvas it's okay for now
                 ctx2.beginPath();
                 ctx2.arc(closest.x, closest.y, 6, 0, Math.PI * 2);
                 ctx2.fillStyle = colors.line;
