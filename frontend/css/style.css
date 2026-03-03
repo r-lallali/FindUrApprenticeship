@@ -1078,7 +1078,7 @@ a:hover {
     }
 
     #contentOffers .stats-bar {
-        display: none;
+        display: none !important;
     }
 
     .offer-header {
