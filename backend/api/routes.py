@@ -199,10 +199,13 @@ async def remove_favorite(
 # ═══════════════════════════════════════════════════════
 
 def _base_query(db: Session):
-    """Base query: exclude school offers and non-alternance CDD."""
+    """Base query: exclude school offers, non-alternance CDD, and specific schools."""
     return db.query(Offer).filter(
         Offer.is_school == False,  # noqa: E712
         Offer.is_alternance == True,  # noqa: E712
+        Offer.company.notilike("%iscod%"),
+        Offer.company.notilike("%icademie%"),
+        Offer.company.notilike("%i-cademie%")
     )
 
 
