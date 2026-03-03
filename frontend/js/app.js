@@ -925,17 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== TOASTS =====
     function showToast(message, type = 'info') {
-        const container = document.getElementById('toastContainer');
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-        container.appendChild(toast);
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateX(100%)';
-            toast.style.transition = 'all 0.3s ease';
-            setTimeout(() => toast.remove(), 300);
-        }, 4000);
+        return; // Notifications disabled
     }
 
     // ===== UTILITIES =====
