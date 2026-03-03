@@ -1885,12 +1885,10 @@ a:hover {
 
 .btn-status.active {
     border-color: transparent !important;
-    box-shadow: 0 0 15px currentColor;
 }
 
 .btn-status.active::before {
     opacity: 1;
-    box-shadow: 0 0 5px currentColor;
 }
 
 .btn-status.to_apply {
