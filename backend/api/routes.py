@@ -284,6 +284,21 @@ def _base_query(db: Session):
         Offer.company.notilike("%nexa digital%"),
         Offer.company.notilike("%formation alternance superieure%"),
         Offer.company.notilike("%organisation formations informatiques%"),
+        # Exclude offers where description reveals a training org / CFA
+        Offer.description.notilike("%organisme de formation%"),
+        Offer.description.notilike("%centre de formation%"),
+        Offer.description.notilike("%cfa certifi%"),
+        Offer.description.notilike("%notre cfa%"),
+        Offer.description.notilike("%notre centre de formation%"),
+        Offer.description.notilike("%vous propose une formation en alternance%"),
+        Offer.description.notilike("%formation en alternance reconnue%"),
+        Offer.description.notilike("%nous vous proposons une formation%"),
+        Offer.description.notilike("%rejoignez notre formation%"),
+        Offer.description.notilike("%intégrez notre école%"),
+        Offer.description.notilike("%integrez notre ecole%"),
+        Offer.description.notilike("%entreprises partenaires%"),
+        Offer.description.notilike("%école partenaire%"),
+        Offer.description.notilike("%ecole partenaire%"),
     )
 
 

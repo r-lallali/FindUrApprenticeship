@@ -89,7 +89,18 @@ SCHOOL_DESCRIPTION_KEYWORDS = [
     "prise en charge par l'opco",
     "aucun frais pour le candidat",
     "aucun frais de formation",
-    "iscod", "icademie", "i-cademie"
+    "iscod", "icademie", "i-cademie",
+    # Generic CFA / training org patterns
+    "organisme de formation",
+    "centre de formation",
+    "cfa certifi",
+    "notre cfa",
+    "notre centre de formation",
+    "vous propose une formation en alternance",
+    "formation en alternance reconnue",
+    "nous vous proposons une formation",
+    "entreprises partenaires",
+    "école partenaire", "ecole partenaire",
 ]
 
 
