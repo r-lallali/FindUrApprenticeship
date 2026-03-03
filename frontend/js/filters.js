@@ -189,39 +189,52 @@ const Filters = (() => {
 
     /**
      * Reset all filters to defaults.
+     * @param {boolean} silent If true, do not trigger a search event.
      */
-    function reset() {
-        state = {
-            keyword: '',
-            technology: '',
-            location: '',
-            department: '',
-            category: '',
-            profile: '',
-            source: '',
-            date_filter: '',
-            sort_by: 'date',
-            sort_order: 'desc',
-            page: 1,
-            per_page: 20,
-        };
+    function reset(silent = false) {
+        state.keyword = '';
+        state.technology = '';
+        state.location = '';
+        state.department = '';
+        state.category = '';
+        state.profile = '';
+        state.source = '';
+        state.date_filter = '';
+        state.sort_by = 'date';
+        state.sort_order = 'desc';
+        state.page = 1;
+        state.per_page = 20;
 
         // Reset UI
-        document.getElementById('searchInput').value = '';
-        document.getElementById('filterTechnology').value = '';
+        const searchEl = document.getElementById('searchInput');
+        if (searchEl) searchEl.value = '';
+
+        const techEl = document.getElementById('filterTechnology');
+        if (techEl) techEl.value = '';
+
         const catEl = document.getElementById('filterCategory');
         if (catEl) catEl.value = '';
-        document.getElementById('filterProfile').value = '';
-        document.getElementById('filterSource').value = '';
-        document.getElementById('filterLocation').value = '';
-        document.getElementById('sortSelect').value = 'date-desc';
+
+        const profEl = document.getElementById('filterProfile');
+        if (profEl) profEl.value = '';
+
+        const srcEl = document.getElementById('filterSource');
+        if (srcEl) srcEl.value = '';
+
+        const locEl = document.getElementById('filterLocation');
+        if (locEl) locEl.value = '';
+
+        const sortEl = document.getElementById('sortSelect');
+        if (sortEl) sortEl.value = 'date-desc';
 
         // Reset date chips
         document.querySelectorAll('.date-chip').forEach((c) => c.classList.remove('active'));
         const allChip = document.querySelector('.date-chip[data-filter=""]');
         if (allChip) allChip.classList.add('active');
 
-        triggerChange();
+        if (!silent) {
+            triggerChange();
+        }
     }
 
     /**
@@ -253,8 +266,8 @@ const Filters = (() => {
      * Used by clickable stats to navigate with a pre-filled filter.
      */
     function setFilter(key, value) {
-        // Reset all filters first for a clean navigation
-        reset();
+        // Reset all filters first for a clean navigation, but silently!
+        reset(true);
         state[key] = value;
         state.page = 1;
 
@@ -278,6 +291,7 @@ const Filters = (() => {
             if (locEl) locEl.value = value;
         }
 
+        // Only trigger the API call AFTER everything is set
         triggerChange();
     }
 
