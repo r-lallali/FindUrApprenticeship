@@ -921,7 +921,7 @@ async def fix_missing_urls(db: Session = Depends(get_db)):
     # LBA source_ids look like: lba_matcha_69a6bb0... or lba_offres_emploi_partenaires_...
     offers = db.query(Offer).filter(
         Offer.source == "labonnealternance",
-        (Offer.url == None) | (Offer.url == "")  # noqa: E711
+        ((Offer.url == None) | (Offer.url == "") | (Offer.url.like("%type=partner&itemId=%")))  # noqa: E711
     ).all()
     
     updated = 0
@@ -939,7 +939,7 @@ async def fix_missing_urls(db: Session = Depends(get_db)):
                 elif idea_type == "peJob":
                     offer.url = f"https://candidat.francetravail.fr/offres/recherche/detail/{offer_id}"
                 elif idea_type == "offres_emploi_partenaires" or idea_type == "partnerJob":
-                    offer.url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type=partner&itemId={offer_id}"
+                    offer.url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type=partnerJob&itemId={offer_id}"
                 else:
                     offer.url = f"https://labonnealternance.apprentissage.beta.gouv.fr/recherche-apprentissage?display=list&page=fiche&type={idea_type}&itemId={offer_id}"
                 updated += 1
