@@ -215,7 +215,11 @@ class FranceTravailScraper(BaseScraper):
                     or result.select_one(".company")
                 )
                 if company_el:
-                    offer["company"] = company_el.get_text(strip=True)
+                    comp_text = company_el.get_text(strip=True)
+                    import re
+                    # Remove merged location like " -93 - DRANCY"
+                    comp_text = re.split(r'\s*-\s*\d{2,3}\s*-\s*', comp_text)[0].strip()
+                    offer["company"] = comp_text
                 else:
                     offer["company"] = "Entreprise confidentielle"
 

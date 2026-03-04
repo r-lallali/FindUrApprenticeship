@@ -216,8 +216,36 @@ CITY_TO_DEPT = {
     "beziers": "34", "antibes": "06", "la rochelle": "17", "saint-maur-des-fossés": "94",
     "saint-maur-des-fosses": "94", "cannes": "06", "calais": "62", "saint-nazaire": "44", "mérignac": "33",
     "merignac": "33", "drancy": "93", "colmar": "68", "ajaccio": "2A", "bourges": "18",
-    "issoudun": "36", "châteauroux": "36", "chateauroux": "36", "pantin": "93"
+    "issoudun": "36", "châteauroux": "36", "chateauroux": "36", "pantin": "93",
+    "la défense": "92", "la defense": "92", "sophia-antipolis": "06", "sophia antipolis": "06"
 }
+
+# Cache for geo API lookups (module-level, persists during a scrape run)
+_geo_cache: Dict[str, Optional[str]] = {}
+
+
+def _resolve_city_department(city_name: str) -> Optional[str]:
+    """Resolve a city name to a department code using the French government geo API."""
+    if city_name in _geo_cache:
+        return _geo_cache[city_name]
+    try:
+        import httpx
+        resp = httpx.get(
+            "https://geo.api.gouv.fr/communes",
+            params={"nom": city_name, "fields": "codeDepartement", "limit": 1, "boost": "population"},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            if data:
+                dept = data[0].get("codeDepartement")
+                _geo_cache[city_name] = dept
+                return dept
+    except Exception:
+        pass
+    _geo_cache[city_name] = None
+    return None
+
 
 def enrich_location(location: Optional[str]) -> tuple[Optional[str], Optional[str]]:
     """
@@ -228,6 +256,9 @@ def enrich_location(location: Optional[str]) -> tuple[Optional[str], Optional[st
         return None, None
         
     loc_clean = location.strip()
+    # Strip ', France' which is often added by LinkedIn
+    import re
+    loc_clean = re.sub(r',\s*France$', '', loc_clean, flags=re.IGNORECASE).strip()
     loc_lower = loc_clean.lower()
     
     # 1. First, check if there's already a department code explicitly in the string
@@ -247,6 +278,14 @@ def enrich_location(location: Optional[str]) -> tuple[Optional[str], Optional[st
             if re.search(rf'\b{name.lower()}\b', loc_lower):
                 dept_code = code
                 break
+
+    # 4. If still not found, try the French government geo API
+    if not dept_code:
+        city_name = re.sub(r'^\d{2,3}\s*-\s*', '', loc_clean)  # Remove "76 - " prefix
+        city_name = re.sub(r'\s*\(.*\)', '', city_name).strip()  # Remove parentheticals
+        city_name = re.sub(r'\s*,.*', '', city_name).strip()  # Remove after comma
+        if city_name and len(city_name) >= 2:
+            dept_code = _resolve_city_department(city_name)
                 
     # Format the location nicely
     enriched_location = loc_clean
