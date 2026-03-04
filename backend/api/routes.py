@@ -215,6 +215,8 @@ def _base_query(db: Session):
         Offer.company.notilike("%formaposte%"),
         Offer.company.notilike("%carrevolutis%"),
         Offer.description.notilike("%carrevolutis%"),
+        Offer.company.notilike("%boulangerie ange%"),
+        Offer.description.notilike("%boulangerie ange%"),
         Offer.company.notilike("%icademie%"),
         Offer.description.notilike("%icademie%"),
         Offer.company.notilike("%i-cademie%"),
