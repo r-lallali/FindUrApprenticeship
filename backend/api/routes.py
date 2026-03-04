@@ -259,12 +259,17 @@ async def get_offers(
         from scrapers.utils import extract_department
         dept_match = extract_department(location)
         if dept_match:
-            query = query.filter(
-                or_(
-                    Offer.location.ilike(f"%{location}%"),
-                    Offer.department == dept_match
+            # If the search is exactly the department code, use it strictly
+            if location.strip() == dept_match:
+                query = query.filter(Offer.department == dept_match)
+            else:
+                # If it's something like "Paris 01", we want either exact text match or the resolved department
+                query = query.filter(
+                    or_(
+                        Offer.location.ilike(f"%{location}%"),
+                        Offer.department == dept_match
+                    )
                 )
-            )
         else:
             query = query.filter(Offer.location.ilike(f"%{location}%"))
     if department:

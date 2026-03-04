@@ -159,41 +159,43 @@ def clean_text(text: Optional[str], preserve_newlines: bool = False) -> Optional
 
 
 def extract_department(location: Optional[str]) -> Optional[str]:
-    """Extract department code from a location string (strictly 2 characters)."""
+    """Extract department code from a location string."""
     if not location:
         return None
     
-    # 1. 5-digit postal codes (take first 2 digits) - highly reliable
+    # 1. 5-digit postal codes (take first 2-3 digits) - highly reliable
     match_5_digit = re.search(r'\b(97[1-6]|[0-8]\d|9[0-5])\d{3}\b', location)
     if match_5_digit:
-        return match_5_digit.group(1)[:2]
+        return match_5_digit.group(1)
         
     # 2. Extract ALL valid standalone codes
     codes = re.findall(r'\b(97[1-6]|2[AB]|0[1-9]|[1-8]\d|9[0-5])\b', location)
     
-    def to_2(c): return c[:2] if c else c
-    
     if not codes:
         match_exact = re.fullmatch(r'(97[1-6]|2[AB]|0[1-9]|[1-8]\d|9[0-5])', location.strip())
-        return to_2(match_exact.group(1)) if match_exact else None
+        return match_exact.group(1) if match_exact else None
         
-    selected = None
     if len(codes) == 1:
-        selected = codes[0]
-    else:
-        # Multiple codes found (e.g. "Paris 01 - 75")
-        # Rule A: Favor formatted markers "75 -" or "- 75"
-        for code in codes:
-            if re.search(rf'({code}\s*-)|(-\s*{code})', location):
-                selected = code
-                break
-        
-        if not selected:
-            # Rule B: Favor code NOT in the risky arrondissement range (01-20)
-            non_risky = [c for c in codes if c not in [str(i).zfill(2) for i in range(1, 21)]]
-            selected = non_risky[0] if non_risky else codes[0]
+        return codes[0]
+    
+    # Multiple codes found (e.g. "Paris 01 - 75")
+    # Identify which ones LOOK like arrondissements (01-20 in a city context)
+    formatted_codes = []
+    for code in codes:
+        if re.search(rf'({code}\s*-)|(-\s*{code})', location):
+            formatted_codes.append(code)
             
-    return to_2(selected)
+    if not formatted_codes:
+        formatted_codes = codes
+
+    # If we have multiple, prioritize the one that isn't a risky arrondissement code
+    risky = [str(i).zfill(2) for i in range(1, 21)]
+    non_risky = [c for c in formatted_codes if c not in risky]
+    
+    if non_risky:
+        return non_risky[0]
+        
+    return formatted_codes[0]
 
 # Mapping of French department codes to their names
 DEPARTMENTS = {
@@ -217,7 +219,6 @@ DEPARTMENTS = {
     "83": "Var", "84": "Vaucluse", "85": "Vendée", "86": "Vienne", "87": "Haute-Vienne",
     "88": "Vosges", "89": "Yonne", "90": "Territoire de Belfort", "91": "Essonne", "92": "Hauts-de-Seine",
     "93": "Seine-Saint-Denis", "94": "Val-de-Marne", "95": "Val-d'Oise",
-    "97": "Outre-Mer",
     "971": "Guadeloupe", "972": "Martinique", "973": "Guyane", "974": "La Réunion", "976": "Mayotte"
 }
 
@@ -264,8 +265,6 @@ def _resolve_city_department(city_name: str) -> Optional[str]:
             data = resp.json()
             if data:
                 dept = data[0].get("codeDepartement")
-                if dept:
-                    dept = dept[:2]
                 _geo_cache[city_name] = dept
                 return dept
     except Exception:
@@ -345,15 +344,15 @@ def enrich_location(location: Optional[str]) -> tuple[Optional[str], Optional[st
         dept_name = DEPARTMENTS[dept_code]
         # If the string is just the code, or just "department [code]", replace it
         if loc_clean == dept_code or re.fullmatch(r'd[eé]partement\s+' + dept_code, loc_lower):
-            enriched_location = f"{dept_name} ({dept_code[:2]})"
+            enriched_location = f"{dept_name} ({dept_code})"
         # If the location already has the name or code but not nicely formatted together
-        elif dept_code[:2] not in loc_clean and dept_name.lower() not in loc_lower:
+        elif dept_code not in loc_clean and dept_name.lower() not in loc_lower:
             # We found a city like "Paris", let's append the dept if not present
             # But avoid doing "Paris (75) (75)"
             if not re.search(r'\(\d+[AB]?\)', enriched_location):
-                enriched_location = f"{enriched_location} ({dept_code[:2]})"
+                enriched_location = f"{enriched_location} ({dept_code})"
                 
-    return enriched_location, dept_code[:2] if dept_code else None
+    return enriched_location, dept_code
 
 
 def normalize_profile(profile: Optional[str]) -> Optional[str]:
