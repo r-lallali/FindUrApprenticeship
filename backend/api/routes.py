@@ -787,7 +787,7 @@ async def run_global_scrape():
                     if offer_data.get("description"):
                         if not existing.description or len(offer_data["description"]) > len(existing.description):
                             existing.description = offer_data["description"]
-                    if not existing.publication_date and offer_data.get("publication_date"):
+                    if offer_data.get("publication_date"):
                         existing.publication_date = offer_data["publication_date"]
             bg_db.commit()
             print(f"Scraping completed for {source_name}. {new_count} new offers added.")
@@ -885,7 +885,7 @@ async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Ses
                     if offer_data.get("description"):
                         if not existing.description or len(offer_data["description"]) > len(existing.description):
                             existing.description = offer_data["description"]
-                    if not existing.publication_date and offer_data.get("publication_date"):
+                    if offer_data.get("publication_date"):
                         existing.publication_date = offer_data["publication_date"]
             bg_db.commit()
             global_scraping_status["progress"] = 100

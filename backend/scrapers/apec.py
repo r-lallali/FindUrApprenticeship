@@ -124,7 +124,9 @@ class ApecScraper(BaseScraper):
             ts = raw_data.get("datePublication") or full_details.get("datePublication")
             if ts:
                 try:
-                    pub_date = datetime.fromtimestamp(int(ts) / 1000.0)
+                    # ts is often in the format "2026-02-03T09:01:15.000+0000"
+                    clean_ts = ts.replace("+0000", "+00:00")
+                    pub_date = datetime.fromisoformat(clean_ts)
                 except (ValueError, TypeError):
                     pass
             
