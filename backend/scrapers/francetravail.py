@@ -129,25 +129,20 @@ class FranceTravailScraper(BaseScraper):
                     result["description"] = desc_el.get_text(separator="\n", strip=True)
 
                 # Extract location from detail page
-                # Location appears as text like "13 - Marseille 10e Arrondissement"
-                # Look for the Mappy link which is next to the location
+                # Location is in the <p> right after the <h1> title
+                # Format: "76 - Saint-Aubin-lès-Elbeuf-Localiser avec Mappy"
                 import re
-                mappy_link = soup.select_one("a[href*='mappy.com']")
-                if mappy_link:
-                    loc_parent = mappy_link.parent
-                    if loc_parent:
-                        loc_text = loc_parent.get_text(strip=True)
-                        # Remove the "Localiser avec Mappy" part
-                        loc_text = re.sub(r'Localiser avec Mappy', '', loc_text).strip()
-                        if loc_text:
+                h1 = soup.select_one("h1")
+                if h1:
+                    loc_el = h1.find_next_sibling()
+                    if loc_el:
+                        loc_text = loc_el.get_text(strip=True)
+                        # Remove "Localiser avec Mappy" and everything after
+                        loc_text = re.split(r'-?\s*Localiser avec Mappy', loc_text)[0].strip()
+                        # Remove trailing dash if any
+                        loc_text = loc_text.rstrip('-').strip()
+                        if loc_text and len(loc_text) > 2:
                             result["location"] = loc_text
-
-                if not result.get("location"):
-                    # Fallback: look for text pattern "XX - CityName" in the page
-                    page_text = soup.get_text()
-                    loc_match = re.search(r'(\d{2,3})\s*-\s*([A-ZÀ-Ÿ][a-zà-ÿ\s\-\']+)', page_text)
-                    if loc_match:
-                        result["location"] = f"{loc_match.group(1)} - {loc_match.group(2).strip()}"
 
                 return result if result else None
         except Exception as e:
