@@ -111,7 +111,7 @@ const Filters = (() => {
         // Reset button
         const resetBtn = document.getElementById('btnReset');
         if (resetBtn) {
-            resetBtn.addEventListener('click', reset);
+            resetBtn.addEventListener('click', () => reset(false));
         }
 
         // Mobile sidebar toggle
@@ -193,6 +193,9 @@ const Filters = (() => {
      * @param {boolean} silent If true, do not trigger a search event.
      */
     function reset(silent = false) {
+        // If first arg is an Event object (from being an event listener), treat as silent = false
+        if (typeof silent !== 'boolean') silent = false;
+
         state.keyword = '';
         state.technology = '';
         state.location = '';
