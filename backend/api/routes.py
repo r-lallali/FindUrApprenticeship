@@ -999,6 +999,31 @@ async def fix_school_flags(db: Session = Depends(get_db)):
     }
 
 
+@router.post("/admin/fix-alternance")
+async def fix_alternance_flags(db: Session = Depends(get_db)):
+    """Re-scan all offers and flag non-alternance offers (CDIs) that slipped through."""
+    from scrapers.skills_extractor import is_alternance_offer
+
+    # Get all offers currently marked as alternance
+    offers = db.query(Offer).filter(Offer.is_alternance == True).all()  # noqa: E712
+    flagged = 0
+    flagged_titles = []
+
+    for offer in offers:
+        if not is_alternance_offer(offer.title or "", offer.description or "", offer.contract_type):
+            offer.is_alternance = False
+            flagged += 1
+            flagged_titles.append(offer.title)
+
+    db.commit()
+
+    return {
+        "flagged": flagged,
+        "sample_titles": list(set(flagged_titles))[:20],
+        "message": f"{flagged} offres marquées comme non-alternance (CDI/CDD).",
+    }
+
+
 @router.post("/admin/cleanup-duplicates")
 async def cleanup_duplicates(db: Session = Depends(get_db)):
     """Remove existing duplicate offers based on title, description, location, and department."""
