@@ -192,53 +192,8 @@ const Filters = (() => {
      * Reset all filters to defaults.
      * @param {boolean} silent If true, do not trigger a search event.
      */
-    function reset(silent = false) {
-        // If first arg is an Event object (from being an event listener), treat as silent = false
-        if (typeof silent !== 'boolean') silent = false;
-
-        state.keyword = '';
-        state.technology = '';
-        state.location = '';
-        state.department = '';
-        state.category = '';
-        state.profile = '';
-        state.source = '';
-        state.date_filter = '';
-        state.sort_by = 'date';
-        state.sort_order = 'desc';
-        state.page = 1;
-        state.per_page = 20;
-
-        // Reset UI
-        const searchEl = document.getElementById('searchInput');
-        if (searchEl) searchEl.value = '';
-
-        const techEl = document.getElementById('filterTechnology');
-        if (techEl) techEl.value = '';
-
-        const catEl = document.getElementById('filterCategory');
-        if (catEl) catEl.value = '';
-
-        const profEl = document.getElementById('filterProfile');
-        if (profEl) profEl.value = '';
-
-        const srcEl = document.getElementById('filterSource');
-        if (srcEl) srcEl.value = '';
-
-        const locEl = document.getElementById('filterLocation');
-        if (locEl) locEl.value = '';
-
-        const sortEl = document.getElementById('sortSelect');
-        if (sortEl) sortEl.value = 'date-desc';
-
-        // Reset date chips
-        document.querySelectorAll('.date-chip').forEach((c) => c.classList.remove('active'));
-        const allChip = document.querySelector('.date-chip[data-filter=""]');
-        if (allChip) allChip.classList.add('active');
-
-        if (!silent) {
-            triggerChange();
-        }
+    function reset() {
+        window.location.reload();
     }
 
     /**
