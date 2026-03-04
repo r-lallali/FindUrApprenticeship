@@ -23,6 +23,7 @@ SCHOOL_KEYWORDS = [
     "comptalia", "aftral", "afpa", "greta", "cesi", "enaco",
     "esecad", "efc", "cnfdi", "skill and you", "skillandyou",
     "visiplus", "digital campus", "digital school", "digital college",
+    "jobergroup", "jober group",
     "hetic", "web@cadémie", "webacademie", "wild code school",
     "wildcodeschool", "le wagon", "lewagon", "la capsule",
     "iron hack", "ironhack", "simplon", "pop school", "popschool",

@@ -206,6 +206,10 @@ def _base_query(db: Session):
         # Exclude known training schools / "fake" company offers
         Offer.company.notilike("%iscod%"),
         Offer.description.notilike("%iscod%"),
+        Offer.company.notilike("%oktogone%"),
+        Offer.description.notilike("%oktogone%"),
+        Offer.company.notilike("%jobergroup%"),
+        Offer.description.notilike("%jobergroup%"),
         Offer.company.notilike("%icademie%"),
         Offer.description.notilike("%icademie%"),
         Offer.company.notilike("%i-cademie%"),
