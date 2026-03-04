@@ -583,6 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const fullData = cachedTimelineData[apiScale];
+            console.log(`DEBUG: Timeline load scale=${currentTimelineScale}, points=${fullData ? fullData.length : 0}`);
 
             if (fullData && fullData.length > 0) {
                 loading.style.display = 'none';
@@ -630,22 +631,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTimelineChart(data, scale = 'month', fullData = [], direction = null, originX = '50%') {
         const container = document.getElementById('timelineChartContainer');
-        const originalCanvas = document.getElementById('timelineCanvas');
         const tooltip = document.getElementById('timelineTooltip');
-        if (!container || !originalCanvas || !data || data.length === 0) return;
+        if (!container || !data || data.length === 0) return;
 
-        // Clean up old canvas to remove ALL event listeners
-        const canvas = originalCanvas.cloneNode(true);
-        originalCanvas.parentNode.replaceChild(canvas, originalCanvas);
+        // Clean any old canvases to avoid duplicates and ensure a fresh start
+        container.querySelectorAll('canvas').forEach(c => c.remove());
+
+        // Re-create it fresh every time for a clean state
+        const canvas = document.createElement('canvas');
+        canvas.id = 'timelineCanvas';
+        container.appendChild(canvas);
 
         if (direction === 'zoom-in' || direction === 'zoom-out') {
             canvas.style.transformOrigin = originX + ' center';
-        }
-
-        if (direction === 'zoom-in') {
-            canvas.classList.add('animate-zoom-in');
-        } else if (direction === 'zoom-out') {
-            canvas.classList.add('animate-zoom-out');
+            canvas.classList.add(direction === 'zoom-in' ? 'animate-zoom-in' : 'animate-zoom-out');
         }
 
         const ctx = canvas.getContext('2d');
@@ -703,6 +702,8 @@ document.addEventListener('DOMContentLoaded', () => {
         function draw() {
             try {
                 const rect = container.getBoundingClientRect();
+                if (rect.width <= 0) return; // Tab is likely hidden or not yet laid out
+
                 canvas.width = rect.width * dpr;
                 canvas.height = 280 * dpr;
                 canvas.style.width = rect.width + 'px';
