@@ -629,12 +629,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderTimelineChart(data, scale = 'month', fullData = [], direction = null, originX = '50%') {
         const container = document.getElementById('timelineChartContainer');
-        const originalCanvas = document.getElementById('timelineCanvas');
+        const canvas = document.getElementById('timelineCanvas');
         const tooltip = document.getElementById('timelineTooltip');
-        if (!container || !originalCanvas || !data || data.length === 0) return;
+        if (!container || !canvas || !data || data.length === 0) return;
 
-        // Create the NEW canvas
-        const canvas = originalCanvas.cloneNode(false);
         const ctx = canvas.getContext('2d');
         const dpr = window.devicePixelRatio || 1;
         const MONTH_NAMES_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
@@ -652,10 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const date = new Date(year, parseInt(parts[1], 10) - 1, parts[2] ? parseInt(parts[2], 10) : 1);
                     const dd = String(date.getDate()).padStart(2, '0');
                     const mm = String(date.getMonth() + 1).padStart(2, '0');
-                    if (isTooltip) {
-                        return `${dd}/${mm}/${year}`;
-                    }
-                    return `${dd}/${mm}`;
+                    return isTooltip ? `${dd}/${mm}/${year}` : `${dd}/${mm}`;
                 }
 
                 if (scale === 'week') {
@@ -703,18 +698,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const maxCount = Math.max(...data.map(d => d.count || 0), 1);
 
-                // Y Grid
-                ctx.textAlign = 'right';
-                ctx.textBaseline = 'middle';
-                ctx.font = '11px Inter, sans-serif';
+                // Grid
+                ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.font = '11px Inter, sans-serif';
                 for (let i = 0; i <= 5; i++) {
                     const val = Math.round((maxCount * i) / 5);
                     const y = padding.top + chartH - (chartH * i) / 5;
-                    ctx.strokeStyle = colors.grid;
-                    ctx.lineWidth = 0.5;
+                    ctx.strokeStyle = colors.grid; ctx.lineWidth = 0.5;
                     ctx.beginPath(); ctx.moveTo(padding.left, y); ctx.lineTo(w - padding.right, y); ctx.stroke();
-                    ctx.fillStyle = colors.text;
-                    ctx.fillText(val.toLocaleString('fr-FR'), padding.left - 8, y);
+                    ctx.fillStyle = colors.text; ctx.fillText(val.toLocaleString('fr-FR'), padding.left - 8, y);
                 }
 
                 chartPoints = data.map((d, i) => ({
@@ -744,51 +735,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.strokeStyle = colors.line; ctx.lineWidth = 2; ctx.stroke();
                 });
 
-                // X Labels
+                // Labels
                 ctx.textAlign = 'center'; ctx.fillStyle = colors.text;
                 chartPoints.forEach(p => ctx.fillText(formatLabel(p.data.period), p.x, h - padding.bottom + 10));
             } catch (err) { console.error('Draw err:', err); }
         }
 
-        draw();
-
-        // New Logic: Smooth CSS Transition
+        // --- Execute logic ---
         if (direction) {
-            const oldCanvas = originalCanvas;
-            oldCanvas.id = '';
-            canvas.id = 'timelineCanvas';
-
-            // Set origins
-            oldCanvas.style.transformOrigin = originX + ' center';
             canvas.style.transformOrigin = originX + ' center';
+            canvas.classList.add(direction === 'zoom-in' ? 'zooming' : 'dezooming');
 
-            // Initial state for new canvas
-            canvas.classList.add(direction === 'zoom-in' ? 'scale-up' : 'scale-down');
-            container.appendChild(canvas);
-
-            // Trigger the transition
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    oldCanvas.classList.remove('active');
-                    oldCanvas.classList.add(direction === 'zoom-in' ? 'exit-zoom-in' : 'exit-zoom-out');
-                    canvas.classList.remove('scale-up', 'scale-down');
-                    canvas.classList.add('active');
-                });
-            });
-
-            // Cleanup
             setTimeout(() => {
-                if (oldCanvas.parentNode) oldCanvas.parentNode.removeChild(oldCanvas);
-            }, 650);
+                draw();
+                canvas.classList.remove('zooming', 'dezooming');
+            }, 150);
         } else {
-            canvas.id = 'timelineCanvas';
-            canvas.classList.add('active');
-            container.replaceChild(canvas, originalCanvas);
+            draw();
         }
 
-        // Mouse Interactivity
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
+        // TOOLTIP & INTERACTIVITY (replace listeners)
+        const newCanvas = canvas.cloneNode(false); // remove listeners
+        canvas.parentNode.replaceChild(newCanvas, canvas);
+
+        newCanvas.addEventListener('mousemove', (e) => {
+            const rect = newCanvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             let closest = null, closestDist = Infinity;
             chartPoints.forEach(p => { const d = Math.abs(mouseX - p.x); if (d < closestDist) { closestDist = d; closest = p; } });
@@ -800,23 +771,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (tx + 150 > container.offsetWidth) tx = closest.x - 160;
                 tooltip.style.left = tx + 'px';
                 tooltip.style.top = (closest.y - 10) + 'px';
-                canvas.style.cursor = scale !== 'day' ? 'pointer' : 'default';
+                newCanvas.style.cursor = scale !== 'day' ? 'pointer' : 'default';
             } else {
                 tooltip.style.display = 'none';
-                canvas.style.cursor = 'default';
+                newCanvas.style.cursor = 'default';
             }
         });
 
-        canvas.addEventListener('click', async (e) => {
+        newCanvas.addEventListener('click', async (e) => {
             if (scale === 'day') return;
-            const rect = canvas.getBoundingClientRect();
+            const rect = newCanvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             let closest = null, closestDist = Infinity;
             chartPoints.forEach(p => { const d = Math.abs(mouseX - p.x); if (d < closestDist) { closestDist = d; closest = p; } });
 
             if (closest && closestDist < 30) {
                 const nextScale = scale === 'year' ? 'month' : (scale === 'month' ? 'week' : 'day');
-                const zoomOrigin = `${((closest.x / canvas.offsetWidth) * 100).toFixed(2)}%`;
+                const zoomOrigin = `${((closest.x / newCanvas.offsetWidth) * 100).toFixed(2)}%`;
 
                 let nextApiScale = nextScale === 'year' ? 'month' : nextScale;
                 if (!cachedTimelineData[nextApiScale]) {
@@ -847,7 +818,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; canvas.style.cursor = 'default'; });
+        newCanvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; newCanvas.style.cursor = 'default'; });
         if (timelineResizeListener) window.removeEventListener('resize', timelineResizeListener);
         timelineResizeListener = draw;
         window.addEventListener('resize', timelineResizeListener);
