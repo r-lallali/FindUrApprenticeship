@@ -146,33 +146,6 @@ def clean_text(text: Optional[str]) -> Optional[str]:
     return text if text else None
 
 
-def extract_department(location: Optional[str]) -> Optional[str]:
-    """Extract department code from a location string."""
-    if not location:
-        return None
-    # Match French department codes:
-    # 1. 5-digit postal codes (take first 2 digits, or first 3 for DOM)
-    # 2. standalone 2-digit codes (01-95)
-    # 3. 2A, 2B (Corse)
-    # 4. 971-976 (DOM standalone)
-    
-    # Try 5-digit postal codes first
-    match_5_digit = re.search(r'\b(97[1-6]|[0-8]\d|9[0-5])\d{3}\b', location)
-    if match_5_digit:
-        return match_5_digit.group(1)
-        
-    # Then standalone codes
-    match_standalone = re.search(r'\b(97[1-6]|2[AB]|[01-9][0-9])\b', location)
-    if match_standalone:
-        return match_standalone.group(1)
-        
-    # Sometimes it's exactly the string with no boundaries, e.g. "75"
-    match_exact = re.fullmatch(r'(97[1-6]|2[AB]|[01-9][0-9])', location.strip())
-    if match_exact:
-        return match_exact.group(1)
-        
-    return None
-
 # Mapping of French department codes to their names
 DEPARTMENTS = {
     "01": "Ain", "02": "Aisne", "03": "Allier", "04": "Alpes-de-Haute-Provence", "05": "Hautes-Alpes",
@@ -197,6 +170,39 @@ DEPARTMENTS = {
     "93": "Seine-Saint-Denis", "94": "Val-de-Marne", "95": "Val-d'Oise",
     "971": "Guadeloupe", "972": "Martinique", "973": "Guyane", "974": "La Réunion", "976": "Mayotte"
 }
+
+# Inverted mapping for name resolution
+NAME_TO_DEPT = {v.lower(): k for k, v in DEPARTMENTS.items()}
+
+def extract_department(location: Optional[str]) -> Optional[str]:
+    """Extract department code from a location string or name."""
+    if not location:
+        return None
+        
+    loc_clean = location.strip()
+    loc_lower = loc_clean.lower()
+    
+    # 1. Try 5-digit postal codes
+    match_5_digit = re.search(r'\b(97[1-6]|[0-8]\d|9[0-5])\d{3}\b', loc_clean)
+    if match_5_digit:
+        return match_5_digit.group(1)
+        
+    # 2. Try standalone numeric codes (2 digits or 3 for DOM)
+    match_standalone = re.search(r'\b(97[1-6]|2[AB]|[01-9][0-9])\b', loc_clean)
+    if match_standalone:
+        return match_standalone.group(1)
+        
+    # 3. Try to match by department name
+    for name, code in NAME_TO_DEPT.items():
+        if name in loc_lower:
+            return code
+
+    # 4. Try major cities
+    for city, code in CITY_TO_DEPT.items():
+        if re.search(rf'\b{city}\b', loc_lower):
+            return code
+            
+    return None
 
 # Mapping of major French cities to their department codes
 CITY_TO_DEPT = {

@@ -337,7 +337,6 @@ async def get_offers(
     if category:
         query = query.filter(Offer.category.ilike(f"%{category}%"))
     if location:
-        from scrapers.utils import extract_department
         dept_match = extract_department(location)
         if dept_match:
             query = query.filter(
@@ -349,7 +348,11 @@ async def get_offers(
         else:
             query = query.filter(Offer.location.ilike(f"%{location}%"))
     if department:
-        query = query.filter(Offer.department == department)
+        dept_match = extract_department(department)
+        if dept_match:
+            query = query.filter(Offer.department == dept_match)
+        else:
+            query = query.filter(Offer.department == department)
     if contract_type:
         query = query.filter(Offer.contract_type.ilike(f"%{contract_type}%"))
     if profile:
@@ -722,6 +725,15 @@ async def get_tech_stats(db: Session = Depends(get_db)):
     def format_query(q) -> list[dict]:
         return [{"name": str(name), "count": count} for name, count in q]
 
+    from scrapers.utils import DEPARTMENTS
+    enriched_departments = []
+    for dept_code, count in top_departments_query:
+        if dept_code and dept_code in DEPARTMENTS:
+            name = f"{dept_code} - {DEPARTMENTS[dept_code]}"
+        else:
+            name = str(dept_code) if dept_code else "Inconnu"
+        enriched_departments.append({"name": name, "count": count, "filterValue": dept_code})
+
     return TechStats(
         top_languages=to_list(lang_counter),
         top_frameworks=to_list(fw_counter),
@@ -730,7 +742,7 @@ async def get_tech_stats(db: Session = Depends(get_db)):
         top_methodologies=to_list(method_counter),
         total_it_offers=total_it,
         total_offers=total_offers,
-        top_departments=format_query(top_departments_query),
+        top_departments=enriched_departments,
         top_companies=format_query(top_companies_query),
         top_categories=format_query(top_categories_query)
     )
