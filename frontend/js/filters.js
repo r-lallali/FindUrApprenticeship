@@ -188,8 +188,52 @@ const Filters = (() => {
      * Reset all filters to defaults.
      * @param {boolean} silent If true, do not trigger a search event.
      */
-    function reset() {
-        window.location.reload();
+    function reset(silent = false) {
+        // Reset state to initial values
+        state = {
+            keyword: '',
+            technology: '',
+            location: '',
+            department: '',
+            category: '',
+            profile: '',
+            source: '',
+            date_filter: '',
+            sort_by: 'date',
+            sort_order: 'desc',
+            page: 1,
+            per_page: 20,
+        };
+
+        // Reset UI elements
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) searchInput.value = '';
+
+        const filterLocation = document.getElementById('filterLocation');
+        if (filterLocation) filterLocation.value = '';
+
+        const selects = ['filterTechnology', 'filterCategory', 'filterProfile', 'filterSource'];
+        selects.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+
+        const sortSelect = document.getElementById('sortSelect');
+        if (sortSelect) sortSelect.value = 'date-desc';
+
+        const dateChips = document.querySelectorAll('.date-chip');
+        dateChips.forEach(chip => {
+            if (chip.dataset.filter === '') {
+                chip.classList.add('active');
+            } else {
+                chip.classList.remove('active');
+            }
+        });
+
+        // Trigger change if not silent
+        if (!silent) {
+            triggerChange();
+        }
     }
 
     /**

@@ -35,36 +35,36 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(updateTabIndicator, 100);
     window.addEventListener('resize', updateTabIndicator);
 
+    function resetToOffers() {
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach((b) => b.classList.remove('active'));
+        const offersTab = document.getElementById('tabOffers');
+        if (offersTab) offersTab.classList.add('active');
+
+        const tabsContainer = document.querySelector('.header-tabs');
+        if (tabsContainer) tabsContainer.dataset.activeTab = 'offers';
+
+        updateTabIndicator();
+
+        document.getElementById('contentOffers').classList.remove('hidden');
+        document.getElementById('contentStats').classList.add('hidden');
+        document.getElementById('contentFavorites').classList.add('hidden');
+
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) sidebar.classList.remove('hidden');
+
+        Filters.reset(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     const btnReset = document.getElementById('btnReset');
     if (btnReset) {
-        btnReset.addEventListener('click', () => {
-            Filters.reset();
-        });
+        btnReset.addEventListener('click', resetToOffers);
     }
 
     const headerLogo = document.getElementById('headerLogo');
     if (headerLogo) {
-        headerLogo.addEventListener('click', () => {
-            const tabBtns = document.querySelectorAll('.tab-btn');
-            tabBtns.forEach((b) => b.classList.remove('active'));
-            const offersTab = document.getElementById('tabOffers');
-            if (offersTab) offersTab.classList.add('active');
-
-            const tabsContainer = document.querySelector('.header-tabs');
-            if (tabsContainer) tabsContainer.dataset.activeTab = 'offers';
-
-            updateTabIndicator();
-
-            document.getElementById('contentOffers').classList.remove('hidden');
-            document.getElementById('contentStats').classList.add('hidden');
-            document.getElementById('contentFavorites').classList.add('hidden');
-
-            const sidebar = document.querySelector('.sidebar');
-            if (sidebar) sidebar.classList.remove('hidden');
-
-            Filters.reset(false);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
+        headerLogo.addEventListener('click', resetToOffers);
     }
 
     // ===== THEME =====
