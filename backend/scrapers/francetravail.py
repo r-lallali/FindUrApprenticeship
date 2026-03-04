@@ -96,9 +96,12 @@ class FranceTravailScraper(BaseScraper):
                 oid = off.get("_id")
                 if oid:
                     async with desc_semaphore:
-                        full_desc = await self._fetch_description(client, oid)
-                        if full_desc:
-                            off["description"] = full_desc
+                        detail = await self._fetch_description(client, oid)
+                        if detail and isinstance(detail, dict):
+                            if detail.get("description"):
+                                off["description"] = detail["description"]
+                            if detail.get("location"):
+                                off["location"] = detail["location"]
                 return off
 
             enrich_tasks = [enrich_description(off) for off in initial_offers]
@@ -107,21 +110,46 @@ class FranceTravailScraper(BaseScraper):
         self.logger.info(f"France Travail: {len(all_offers)} offers enriched and ready")
         return all_offers
 
-    async def _fetch_description(self, client: httpx.AsyncClient, offer_id: str) -> Optional[str]:
-        """Fetch the full job description from the detail page."""
+    async def _fetch_description(self, client: httpx.AsyncClient, offer_id: str) -> Optional[Dict[str, str]]:
+        """Fetch the full job description and location from the detail page."""
         try:
             url = f"https://candidat.francetravail.fr/offres/recherche/detail/{offer_id}"
             response = await client.get(url)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, "html.parser")
-                # Look for the main description container
+                result = {}
+
+                # Extract description
                 desc_el = (
                     soup.select_one("div[itemprop='description']")
                     or soup.select_one(".description")
                     or soup.select_one(".offre-detail-description")
                 )
                 if desc_el:
-                    return desc_el.get_text(separator="\n", strip=True)
+                    result["description"] = desc_el.get_text(separator="\n", strip=True)
+
+                # Extract location from detail page
+                # Location appears as text like "13 - Marseille 10e Arrondissement"
+                # Look for the Mappy link which is next to the location
+                import re
+                mappy_link = soup.select_one("a[href*='mappy.com']")
+                if mappy_link:
+                    loc_parent = mappy_link.parent
+                    if loc_parent:
+                        loc_text = loc_parent.get_text(strip=True)
+                        # Remove the "Localiser avec Mappy" part
+                        loc_text = re.sub(r'Localiser avec Mappy', '', loc_text).strip()
+                        if loc_text:
+                            result["location"] = loc_text
+
+                if not result.get("location"):
+                    # Fallback: look for text pattern "XX - CityName" in the page
+                    page_text = soup.get_text()
+                    loc_match = re.search(r'(\d{2,3})\s*-\s*([A-ZÀ-Ÿ][a-zà-ÿ\s\-\']+)', page_text)
+                    if loc_match:
+                        result["location"] = f"{loc_match.group(1)} - {loc_match.group(2).strip()}"
+
+                return result if result else None
         except Exception as e:
             self.logger.debug(f"Error fetching description for {offer_id}: {e}")
         return None
