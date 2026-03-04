@@ -515,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let maxPoints = 12;
                 if (currentTimelineScale === 'month') maxPoints = 24;
-                if (currentTimelineScale === 'week') maxPoints = 24;
+                if (currentTimelineScale === 'week') maxPoints = 6;
                 if (currentTimelineScale === 'day') maxPoints = 3; // Focus on 3 days
 
                 const endIndex = fullData.length - currentTimelineOffset;
@@ -805,7 +805,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
-                    const maxP = nextScale === 'day' ? 3 : 24;
+                    const maxP = nextScale === 'day' ? 3 : (nextScale === 'week' ? 6 : 24);
                     let desiredEndIndex = bestIndex + Math.ceil(maxP / 2);
                     if (desiredEndIndex >= nextFullData.length) desiredEndIndex = nextFullData.length;
 
