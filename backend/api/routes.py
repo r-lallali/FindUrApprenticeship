@@ -657,14 +657,16 @@ async def get_tech_stats(db: Session = Depends(get_db)):
 
 @router.get("/stats/timeline")
 async def get_timeline_stats(
-    scale: str = Query("month", enum=["month", "week", "day"]),
+    scale: str = Query("month", enum=["year", "month", "week", "day"]),
     db: Session = Depends(get_db)
 ):
     """Get offer counts grouped by month, week, or day for the timeline chart."""
     try:
         base_query = _base_query(db)
         # Filter only last 5 years for week scale, 10 years for month, 6 months for day
-        if scale == "month":
+        if scale == "year":
+            days_back = 365 * 20
+        elif scale == "month":
             days_back = 365 * 10
         elif scale == "week":
             days_back = 365 * 2
@@ -675,7 +677,9 @@ async def get_timeline_stats(
 
         engine_dialect = db.get_bind().dialect.name
         if engine_dialect == "sqlite":
-            if scale == "week":
+            if scale == "year":
+                group_expr = func.strftime('%Y', Offer.publication_date)
+            elif scale == "week":
                 group_expr = func.strftime('%Y-%W', Offer.publication_date)
             elif scale == "day":
                 group_expr = func.strftime('%Y-%m-%d', Offer.publication_date)
@@ -683,7 +687,9 @@ async def get_timeline_stats(
                 group_expr = func.strftime('%Y-%m', Offer.publication_date)
         else:
             # Postgres
-            if scale == "week":
+            if scale == "year":
+                group_expr = func.to_char(Offer.publication_date, 'YYYY')
+            elif scale == "week":
                 # ISO week grouping
                 group_expr = func.to_char(Offer.publication_date, 'IYYY-IW')
             elif scale == "day":

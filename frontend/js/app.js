@@ -491,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentTimelineScale = scale;
             currentTimelineOffset = 0; // Reset offset when changing scale
 
-            const levels = { 'month': 3, 'week': 2, 'day': 1 };
+            const levels = { 'year': 4, 'month': 3, 'week': 2, 'day': 1 };
             let direction = null;
             if (levels[oldScale] > levels[scale]) direction = 'zoom-in';
             if (levels[oldScale] < levels[scale]) direction = 'zoom-out';
@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function loadTimelineChart(silent = false, direction = null) {
+    async function loadTimelineChart(silent = false, direction = null, originX = '50%') {
         const loading = document.getElementById('timelineLoading');
         if (!loading) return;
 
@@ -521,7 +521,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 loading.style.display = 'none';
 
                 let maxPoints = 12;
-                if (currentTimelineScale === 'month') maxPoints = 24;
+                if (currentTimelineScale === 'year') maxPoints = 5;
+                if (currentTimelineScale === 'month') maxPoints = 3;
                 if (currentTimelineScale === 'week') maxPoints = 6;
                 if (currentTimelineScale === 'day') maxPoints = 3; // Focus on 3 days
 
@@ -544,7 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                renderTimelineChart(data, currentTimelineScale, fullData, direction);
+                renderTimelineChart(data, currentTimelineScale, fullData, direction, originX);
             } else {
                 loading.style.display = 'block';
                 loading.textContent = 'Aucune donnée d\'évolution disponible.';
@@ -560,7 +561,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let timelineResizeListener = null;
     let timelineObserver = null;
 
-    function renderTimelineChart(data, scale = 'month', fullData = [], direction = null) {
+    function renderTimelineChart(data, scale = 'month', fullData = [], direction = null, originX = '50%') {
         const container = document.getElementById('timelineChartContainer');
         const originalCanvas = document.getElementById('timelineCanvas');
         const tooltip = document.getElementById('timelineTooltip');
@@ -569,6 +570,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clean up old canvas to remove ALL event listeners
         const canvas = originalCanvas.cloneNode(true);
         originalCanvas.parentNode.replaceChild(canvas, originalCanvas);
+
+        if (direction === 'zoom-in' || direction === 'zoom-out') {
+            canvas.style.transformOrigin = originX + ' center';
+        }
 
         if (direction === 'zoom-in') {
             canvas.classList.add('animate-zoom-in');
@@ -581,7 +586,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const MONTH_NAMES_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
         function formatLabel(periodStr, isTooltip = false) {
-            if (!periodStr || typeof periodStr !== 'string' || !periodStr.includes('-')) return periodStr || '';
+            if (!periodStr || typeof periodStr !== 'string') return periodStr || '';
+            if (scale === 'year') return periodStr; // "2025", "2026"
+            if (!periodStr.includes('-')) return periodStr;
             try {
                 const parts = periodStr.split('-');
                 const year = parts[0];
@@ -771,7 +778,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (closest && closestDist < 30) {
                 // Determine target scale
-                const nextScale = scale === 'month' ? 'week' : 'day';
+                const nextScale = scale === 'year' ? 'month' : (scale === 'month' ? 'week' : 'day');
+
+                // Calculate click origin for zoom animation
+                const clickXPercent = ((closest.x / canvasW) * 100).toFixed(2);
+                const zoomOrigin = `${clickXPercent}%`;
 
                 // Fetch new data to align
                 const loading = document.getElementById('timelineLoading');
@@ -792,10 +803,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (nextFullData && nextFullData.length > 0) {
                     // Helper to approximate timestamp from period string
                     const getPeriodTime = (period, pScale) => {
-                        if (!period || !period.includes('-')) return Date.now();
+                        if (!period) return Date.now();
                         const parts = period.split('-');
                         const year = parseInt(parts[0], 10);
-                        const val = parseInt(parts[1], 10);
+                        if (pScale === 'year') {
+                            return new Date(year, 0, 1).getTime();
+                        }
+                        const val = parseInt(parts[1] || 1, 10);
                         if (pScale === 'day') {
                             return new Date(year, val - 1, parts[2] ? parseInt(parts[2], 10) : 1).getTime();
                         } else if (pScale === 'week') {
@@ -818,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
-                    const maxP = nextScale === 'day' ? 3 : (nextScale === 'week' ? 6 : 24);
+                    const maxP = nextScale === 'day' ? 3 : (nextScale === 'week' ? 6 : (nextScale === 'month' ? 3 : 5));
                     let desiredEndIndex = bestIndex + Math.ceil(maxP / 2);
                     if (desiredEndIndex >= nextFullData.length) desiredEndIndex = nextFullData.length;
 
@@ -838,7 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 currentTimelineScale = nextScale;
                 currentTimelineOffset = targetOffset;
-                loadTimelineChart(true, 'zoom-in');
+                loadTimelineChart(true, 'zoom-in', zoomOrigin);
             }
         });
 
