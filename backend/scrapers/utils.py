@@ -162,28 +162,34 @@ def extract_department(location: Optional[str]) -> Optional[str]:
     """Extract department code from a location string."""
     if not location:
         return None
-    # Match French department codes:
-    # 1. 5-digit postal codes (take first 2 digits, or first 3 for DOM)
-    # 2. standalone 2-digit codes (01-95)
-    # 3. 2A, 2B (Corse)
-    # 4. 971-976 (DOM standalone)
     
-    # Try 5-digit postal codes first
+    # 1. 5-digit postal codes (take first 2 digits, or first 3 for DOM) - highly reliable
     match_5_digit = re.search(r'\b(97[1-6]|[0-8]\d|9[0-5])\d{3}\b', location)
     if match_5_digit:
         return match_5_digit.group(1)
         
-    # Then standalone codes
-    match_standalone = re.search(r'\b(97[1-6]|2[AB]|[01-9][0-9])\b', location)
-    if match_standalone:
-        return match_standalone.group(1)
+    # 2. Extract ALL valid standalone codes 01-95, 2A, 2B, 971-976
+    codes = re.findall(r'\b(97[1-6]|2[AB]|0[1-9]|[1-8]\d|9[0-5])\b', location)
+    
+    if not codes:
+        match_exact = re.fullmatch(r'(97[1-6]|2[AB]|0[1-9]|[1-8]\d|9[0-5])', location.strip())
+        return match_exact.group(1) if match_exact else None
         
-    # Sometimes it's exactly the string with no boundaries, e.g. "75"
-    match_exact = re.fullmatch(r'(97[1-6]|2[AB]|[01-9][0-9])', location.strip())
-    if match_exact:
-        return match_exact.group(1)
+    if len(codes) == 1:
+        return codes[0]
         
-    return None
+    # Multiple codes found (e.g. "Paris 01 - 75")
+    # Rule A: Favor formatted markers "75 -" or "- 75"
+    for code in codes:
+        if re.search(rf'({code}\s*-)|(-\s*{code})', location):
+            return code
+            
+    # Rule B: Favor code NOT in the risky arrondissement range (01-20) if choice exists
+    non_risky = [c for c in codes if c not in [str(i).zfill(2) for i in range(1, 21)]]
+    if non_risky:
+        return non_risky[0]
+        
+    return codes[0]
 
 # Mapping of French department codes to their names
 DEPARTMENTS = {
@@ -228,8 +234,10 @@ CITY_TO_DEPT = {
     "beziers": "34", "antibes": "06", "la rochelle": "17", "saint-maur-des-fossés": "94",
     "saint-maur-des-fosses": "94", "cannes": "06", "calais": "62", "saint-nazaire": "44", "mérignac": "33",
     "merignac": "33", "drancy": "93", "colmar": "68", "ajaccio": "2A", "bourges": "18",
-    "issoudun": "36", "châteauroux": "36", "chateauroux": "36", "pantin": "93",
-    "la défense": "92", "la defense": "92", "sophia-antipolis": "06", "sophia antipolis": "06"
+    "issoudun": "36", "châteauroux": "36", "chateauroux": "36", "pantin": "93", "cholet": "49",
+    "vannes": "56", "lorient": "56", "quimper": "29", "saint-malo": "35", "niort": "79",
+    "la défense": "92", "la defense": "92", "sophia-antipolis": "06", "sophia antipolis": "06",
+    "levallois-perret": "92", "neuilly-sur-seine": "92", "issy-les-moulineaux": "92"
 }
 
 # Cache for geo API lookups (module-level, persists during a scrape run)
@@ -273,23 +281,56 @@ def enrich_location(location: Optional[str]) -> tuple[Optional[str], Optional[st
     loc_clean = re.sub(r',\s*France$', '', loc_clean, flags=re.IGNORECASE).strip()
     loc_lower = loc_clean.lower()
     
-    # 1. First, check if there's already a department code explicitly in the string
-    dept_code = extract_department(loc_clean)
+    # 1. Try to find a strong indicator
+    extracted_dept = extract_department(loc_clean) # Our best initial guess
+    potential_codes = re.findall(r'\b(97[1-6]|2[AB]|0[1-9]|[1-8]\d|9[0-5])\b', loc_clean)
     
-    # 2. If not, try to match cities
-    if not dept_code:
-        for city, code in CITY_TO_DEPT.items():
-            # Check for city as whole word
-            if re.search(rf'\b{city}\b', loc_lower):
-                dept_code = code
-                break
-                
-    # 3. If still not, try to match department names
+    is_zip = bool(re.search(r'\b(97[1-6]|[0-8]\d|9[0-5])\d{3}\b', loc_clean))
+    is_code_prefix = bool(re.search(r'^\d{2,3}\s*-\s*', loc_clean))
+    is_code_suffix = bool(re.search(r'\s*-\s*\d{2,3}$', loc_clean))
+    
+    # 2. Match city for disambiguation
+    city_dept = None
+    for city, code in CITY_TO_DEPT.items():
+        if re.search(rf'\b{city}\b', loc_lower):
+            city_dept = code
+            break
+            
+    dept_code = extracted_dept
+    
+    # Priority logic:
+    if city_dept:
+        # If the city code is among the ones we found, it's almost certainly the right one (overrides "Paris 01")
+        if city_dept in potential_codes:
+            dept_code = city_dept
+        # If it's a strong indicator like a 5-digit zip, keep that
+        elif is_zip or is_code_prefix or is_code_suffix:
+            pass # Keep extracted_dept's choice
+        else:
+            # Otherwise believe the city
+            dept_code = city_dept
+    else:
+        # No city found, check for arrondissement protection on the code we found
+        is_risky_code = extracted_dept in [str(i).zfill(2) for i in range(1, 21)]
+        if is_risky_code and not is_zip and not is_code_prefix and not is_code_suffix:
+            # We don't have a city match, but '01' might still be an arrondissement of an unknown city
+            # We keep it as is, but this path is now safer.
+            pass
+            
+    # 3. Try department name matching if still not set
     if not dept_code:
         for code, name in DEPARTMENTS.items():
             if re.search(rf'\b{name.lower()}\b', loc_lower):
                 dept_code = code
                 break
+                
+    # 4. Fallback to API lookup for unknown cities
+    if not dept_code:
+        city_name = re.sub(r'^\d{2,3}\s*-\s*', '', loc_clean)
+        city_name = re.sub(r'\s*\(.*\)', '', city_name).strip()
+        city_name = re.sub(r'\s*,.*', '', city_name).strip()
+        if city_name and len(city_name) >= 2:
+            dept_code = _resolve_city_department(city_name)
 
     # 4. If still not found, try the French government geo API
     if not dept_code:
