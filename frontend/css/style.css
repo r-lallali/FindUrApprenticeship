@@ -1546,6 +1546,39 @@ a:hover {
 .timeline-chart-container canvas {
     display: block;
     width: 100%;
+    transform-origin: center center;
+}
+
+.timeline-chart-container canvas.animate-zoom-in {
+    animation: chartZoomIn 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.timeline-chart-container canvas.animate-zoom-out {
+    animation: chartZoomOut 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+@keyframes chartZoomIn {
+    0% {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes chartZoomOut {
+    0% {
+        transform: scale(1.1);
+        opacity: 0;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .timeline-chart-container .stats-loading {

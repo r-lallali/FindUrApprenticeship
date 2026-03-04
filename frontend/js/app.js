@@ -487,13 +487,20 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.classList.add('active');
 
             // State Update
+            const oldScale = currentTimelineScale;
             currentTimelineScale = scale;
             currentTimelineOffset = 0; // Reset offset when changing scale
-            loadTimelineChart();
+
+            const levels = { 'month': 3, 'week': 2, 'day': 1 };
+            let direction = null;
+            if (levels[oldScale] > levels[scale]) direction = 'zoom-in';
+            if (levels[oldScale] < levels[scale]) direction = 'zoom-out';
+
+            loadTimelineChart(false, direction);
         });
     }
 
-    async function loadTimelineChart(silent = false) {
+    async function loadTimelineChart(silent = false, direction = null) {
         const loading = document.getElementById('timelineLoading');
         if (!loading) return;
 
@@ -537,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
-                renderTimelineChart(data, currentTimelineScale, fullData);
+                renderTimelineChart(data, currentTimelineScale, fullData, direction);
             } else {
                 loading.style.display = 'block';
                 loading.textContent = 'Aucune donnée d\'évolution disponible.';
@@ -553,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let timelineResizeListener = null;
     let timelineObserver = null;
 
-    function renderTimelineChart(data, scale = 'month', fullData = []) {
+    function renderTimelineChart(data, scale = 'month', fullData = [], direction = null) {
         const container = document.getElementById('timelineChartContainer');
         const originalCanvas = document.getElementById('timelineCanvas');
         const tooltip = document.getElementById('timelineTooltip');
@@ -562,6 +569,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clean up old canvas to remove ALL event listeners
         const canvas = originalCanvas.cloneNode(true);
         originalCanvas.parentNode.replaceChild(canvas, originalCanvas);
+
+        if (direction === 'zoom-in') {
+            canvas.classList.add('animate-zoom-in');
+        } else if (direction === 'zoom-out') {
+            canvas.classList.add('animate-zoom-out');
+        }
 
         const ctx = canvas.getContext('2d');
         const dpr = window.devicePixelRatio || 1;
@@ -825,7 +838,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 currentTimelineScale = nextScale;
                 currentTimelineOffset = targetOffset;
-                loadTimelineChart(true);
+                loadTimelineChart(true, 'zoom-in');
             }
         });
 
