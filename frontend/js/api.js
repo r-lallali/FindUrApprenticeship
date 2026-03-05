@@ -75,9 +75,6 @@ const API = (() => {
         getTimelineStats(scale = 'month') {
             return request(`/stats/timeline?scale=${scale}`);
         },
-        getDashboardStats() {
-            return request('/stats/dashboard');
-        },
 
         // ── Scraping ──
         scrapeAll() {

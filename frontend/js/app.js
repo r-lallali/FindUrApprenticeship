@@ -439,72 +439,48 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== TECH STATISTICS =====
 
     let isStatsLoading = false;
-    let statsPromise = null;
-
     async function loadTechStats(silent = false, force = false) {
-        // If already loading, return the existing promise so everyone waits for the same data
-        if (isStatsLoading && statsPromise && !force) {
-            const p = statsPromise;
-            if (!silent) {
-                // If it was silent but now we need UI, wait for it then render
-                await p;
-                renderStatsUI();
+        if (isStatsLoading) return;
+        try {
+            if (force || !cachedTechStats || !cachedGeneralStats) {
+                isStatsLoading = true;
+                if (force || !cachedTechStats) {
+                    cachedTechStats = await API.getTechStats();
+                }
+                if (force || !cachedGeneralStats) {
+                    cachedGeneralStats = await API.getStats();
+                }
             }
-            return p;
+
+            const stats = cachedTechStats;
+            const generalStats = cachedGeneralStats;
+
+
+
+
+            // Load timeline chart
+            loadTimelineChart(silent);
+
+            renderBarChart('chartCompanies', stats.top_companies, 'fw', 'keyword');
+            renderBarChart('chartDepartments', stats.top_departments, 'tool', 'department');
+            renderBarChart('chartCategories', stats.top_categories, 'method', 'category');
+            renderBarChart('chartLanguages', stats.top_languages, 'lang', 'technology');
+            renderBarChart('chartFrameworks', stats.top_frameworks, 'fw', 'technology');
+            renderBarChart('chartTools', stats.top_tools, 'tool', 'technology');
+            renderBarChart('chartMethodologies', stats.top_methodologies, 'method', 'technology');
+
+            const edData = [
+                { name: 'Bac+5 / Master / Ingénieur', count: generalStats.bac5_offers || 0, filterValue: 'bac+5' },
+                { name: 'Bac+4 / M1', count: generalStats.bac4_offers || 0, filterValue: 'bac+4' },
+                { name: 'Bac+3 / Licence / Bachelor', count: generalStats.bac3_offers || 0, filterValue: 'bac+3' },
+                { name: 'Bac+2 / BTS / DUT', count: generalStats.bac2_offers || 0, filterValue: 'bac+2' },
+            ].filter(d => d.count > 0);
+            renderBarChart('chartEducation', edData, 'cert', 'profile');
+        } catch (err) {
+            console.error('Stats loading error:', err);
+        } finally {
+            isStatsLoading = false;
         }
-
-        statsPromise = (async () => {
-            try {
-                if (force || !cachedTechStats || !cachedGeneralStats) {
-                    isStatsLoading = true;
-                    const res = await API.getDashboardStats();
-                    cachedTechStats = res.tech;
-                    cachedGeneralStats = res.general;
-                    // Pre-cache timeline data for the default scale
-                    cachedTimelineData['month'] = res.timeline;
-                }
-
-                if (!silent) {
-                    renderStatsUI();
-                } else {
-                    // Pre-render in background
-                    renderStatsUI(true);
-                }
-            } catch (err) {
-                console.error('Stats loading error:', err);
-            } finally {
-                isStatsLoading = false;
-                statsPromise = null;
-            }
-        })();
-
-        return statsPromise;
-    }
-
-    function renderStatsUI(background = false) {
-        if (!cachedTechStats || !cachedGeneralStats) return;
-
-        const stats = cachedTechStats;
-        const generalStats = cachedGeneralStats;
-
-        // Timeline (month is already cached now)
-        loadTimelineChart(background);
-
-        renderBarChart('chartCompanies', stats.top_companies, 'fw', 'keyword');
-        renderBarChart('chartDepartments', stats.top_departments, 'tool', 'department');
-        renderBarChart('chartCategories', stats.top_categories, 'method', 'category');
-        renderBarChart('chartLanguages', stats.top_languages, 'lang', 'technology');
-        renderBarChart('chartFrameworks', stats.top_frameworks, 'fw', 'technology');
-        renderBarChart('chartTools', stats.top_tools, 'tool', 'technology');
-        renderBarChart('chartMethodologies', stats.top_methodologies, 'method', 'technology');
-
-        const edData = [
-            { name: 'Bac+5 / Master / Ingénieur', count: generalStats.bac5_offers || 0, filterValue: 'bac+5' },
-            { name: 'Bac+4 / M1', count: generalStats.bac4_offers || 0, filterValue: 'bac+4' },
-            { name: 'Bac+3 / Licence / Bachelor', count: generalStats.bac3_offers || 0, filterValue: 'bac+3' },
-            { name: 'Bac+2 / BTS / DUT', count: generalStats.bac2_offers || 0, filterValue: 'bac+2' },
-        ].filter(d => d.count > 0);
-        renderBarChart('chartEducation', edData, 'cert', 'profile');
     }
 
     // ===== TIMELINE CHART =====
@@ -657,7 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function loadTimelineChart(silent = false, force = false, direction = null, originX = '50%') {
+    async function loadTimelineChart(silent = false, direction = null, originX = '50%') {
         const loading = document.getElementById('timelineLoading');
         if (!loading) return;
 
@@ -668,7 +644,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             let apiScale = currentTimelineScale === 'year' ? 'month' : currentTimelineScale;
-            if (force || !cachedTimelineData[apiScale]) {
+            if (!cachedTimelineData[apiScale]) {
                 const data = await API.getTimelineStats(apiScale);
                 cachedTimelineData[apiScale] = Array.isArray(data) ? data : [];
             }
