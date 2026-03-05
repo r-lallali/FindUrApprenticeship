@@ -251,9 +251,9 @@ async def get_offers(
             )
         )
     if category:
-        query = query.filter(Offer.category == category)
+        query = query.filter(Offer.category.ilike(category))
     if company:
-        query = query.filter(Offer.company == company)
+        query = query.filter(Offer.company.ilike(company))
     if location:
         from scrapers.utils import extract_department
         dept_match = extract_department(location)
@@ -280,8 +280,9 @@ async def get_offers(
         if profile_lower == "bac+3":
             query = query.filter(
                 or_(
-                    Offer.profile == profile,
-                    Offer.description.ilike("%bac+3%"),
+                    Offer.profile.ilike("%bac+3%"),
+                    Offer.profile.ilike("%licence%"),
+                    Offer.profile.ilike("%bachelor%"),
                     Offer.description.ilike("%bac + 3%"),
                     Offer.description.ilike("%licence%"),
                     Offer.description.ilike("%bachelor%"),
@@ -294,8 +295,9 @@ async def get_offers(
         elif profile_lower == "bac+4":
             query = query.filter(
                 or_(
-                    Offer.profile == profile,
-                    Offer.description.ilike("%bac+4%"),
+                    Offer.profile.ilike("%bac+4%"),
+                    Offer.profile.ilike("%m1%"),
+                    Offer.profile.ilike("%maîtrise%"),
                     Offer.description.ilike("%bac + 4%"),
                     Offer.description.ilike("%m1%"),
                     Offer.description.ilike("%maîtrise%"),
@@ -307,8 +309,10 @@ async def get_offers(
         elif profile_lower == "bac+5":
             query = query.filter(
                 or_(
-                    Offer.profile == profile,
-                    Offer.description.ilike("%bac+5%"),
+                    Offer.profile.ilike("%bac+5%"),
+                    Offer.profile.ilike("%master%"),
+                    Offer.profile.ilike("%m2%"),
+                    Offer.profile.ilike("%ingénieur%"),
                     Offer.description.ilike("%bac + 5%"),
                     Offer.description.ilike("%master%"),
                     Offer.description.ilike("%m2%"),
@@ -323,8 +327,9 @@ async def get_offers(
         elif profile_lower == "bac+2":
             query = query.filter(
                 or_(
-                    Offer.profile == profile,
-                    Offer.description.ilike("%bac+2%"),
+                    Offer.profile.ilike("%bac+2%"),
+                    Offer.profile.ilike("%bts%"),
+                    Offer.profile.ilike("%dut%"),
                     Offer.description.ilike("%bac + 2%"),
                     Offer.description.ilike("%bts%"),
                     Offer.description.ilike("%dut%"),
@@ -337,11 +342,18 @@ async def get_offers(
         else:
             query = query.filter(Offer.profile == profile)
     if source:
-        query = query.filter(Offer.source == source)
+        query = query.filter(Offer.source.ilike(source))
     if technology:
-        # Search for the technology as a quoted string in the JSON list to avoid partial matches
-        # e.g., "Java" should not match "JavaScript"
-        query = query.filter(Offer.skills_all.ilike(f'%"{technology}"%'))
+        # Improved tech search: try to match as a full string in the JSON or as a word in the text skills
+        tech_pattern = f'%"{technology}"%'
+        query = query.filter(
+            or_(
+                Offer.skills_all.ilike(tech_pattern),
+                Offer.skills_languages.ilike(tech_pattern),
+                Offer.skills_frameworks.ilike(tech_pattern),
+                Offer.skills_tools.ilike(tech_pattern)
+            )
+        )
 
     # Date filters
     if date_filter:
@@ -619,22 +631,22 @@ async def get_tech_stats(db: Session = Depends(get_db)):
                 except (json.JSONDecodeError, TypeError):
                     pass
 
-    # Compute additional interesting global stats for cards
-    top_companies_query = base_query.with_entities(Offer.company, func.count(Offer.id))\
+    # Compute additional statistics with trimming to avoid duplicates due to spacing
+    top_companies_query = base_query.with_entities(func.trim(Offer.company), func.count(Offer.id))\
         .filter(Offer.company.isnot(None), Offer.company != "")\
-        .group_by(Offer.company)\
+        .group_by(func.trim(Offer.company))\
         .order_by(desc(func.count(Offer.id)))\
         .limit(15).all()
     
-    top_departments_query = base_query.with_entities(Offer.department, func.count(Offer.id))\
+    top_departments_query = base_query.with_entities(func.trim(Offer.department), func.count(Offer.id))\
         .filter(Offer.department.isnot(None), Offer.department != "")\
-        .group_by(Offer.department)\
+        .group_by(func.trim(Offer.department))\
         .order_by(desc(func.count(Offer.id)))\
         .limit(10).all()
 
-    top_categories_query = base_query.with_entities(Offer.category, func.count(Offer.id))\
+    top_categories_query = base_query.with_entities(func.trim(Offer.category), func.count(Offer.id))\
         .filter(Offer.category.isnot(None), Offer.category != "")\
-        .group_by(Offer.category)\
+        .group_by(func.trim(Offer.category))\
         .order_by(desc(func.count(Offer.id)))\
         .limit(10).all()
 
