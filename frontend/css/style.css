@@ -166,6 +166,7 @@ body {
     background: var(--bg-primary);
     color: var(--text-primary);
     min-height: 100vh;
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     transition: background var(--transition-normal), color var(--transition-normal);
 }
@@ -184,6 +185,7 @@ a:hover {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 /* ===== HEADER ===== */
@@ -1680,6 +1682,7 @@ a:hover {
 
     .stats-panel {
         padding: 12px;
+        min-width: 0;
     }
 
     .stats-panel-header {
@@ -1697,6 +1700,7 @@ a:hover {
     .timeline-controls {
         width: 100% !important;
         justify-content: center !important;
+        flex-wrap: wrap !important;
     }
 
     .btn-scale {
