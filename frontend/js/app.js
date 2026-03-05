@@ -22,15 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initModal();
     initFavFilters();
     initTimelineControls();
+    loadTechStats(true); // Background preloading of stats for instant access
 
     const btnScrape = document.getElementById('btnScrape');
     if (btnScrape) btnScrape.addEventListener('click', handleScrape);
     checkScrapeStatus(); // Check if scrape already running in background
 
-    // Background preloading of stats for instant access
-    setTimeout(() => {
-        loadTechStats(true); // silent = true
-    }, 500);
+
 
     // Initial indicator position
     setTimeout(updateTabIndicator, 100);
@@ -149,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('contentStats').classList.remove('hidden');
                     if (sidebar) sidebar.classList.add('hidden');
                     if (sidebarToggleBtn) sidebarToggleBtn.style.display = 'none';
-                    loadTechStats(false, true);
+                    loadTechStats(false, false);
                 } else if (tab === 'favorites') {
                     document.getElementById('contentFavorites').classList.remove('hidden');
                     if (sidebar) sidebar.classList.add('hidden');
@@ -427,13 +425,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== TECH STATISTICS =====
 
+    let isStatsLoading = false;
     async function loadTechStats(silent = false, force = false) {
+        if (isStatsLoading) return;
         try {
-            if (force || !cachedTechStats) {
-                cachedTechStats = await API.getTechStats();
-            }
-            if (force || !cachedGeneralStats) {
-                cachedGeneralStats = await API.getStats();
+            if (force || !cachedTechStats || !cachedGeneralStats) {
+                isStatsLoading = true;
+                if (force || !cachedTechStats) {
+                    cachedTechStats = await API.getTechStats();
+                }
+                if (force || !cachedGeneralStats) {
+                    cachedGeneralStats = await API.getStats();
+                }
             }
 
             const stats = cachedTechStats;
@@ -460,6 +463,8 @@ document.addEventListener('DOMContentLoaded', () => {
             renderBarChart('chartEducation', edData, 'cert', 'profile');
         } catch (err) {
             console.error('Stats loading error:', err);
+        } finally {
+            isStatsLoading = false;
         }
     }
 
