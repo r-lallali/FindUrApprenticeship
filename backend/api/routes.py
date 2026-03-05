@@ -351,7 +351,9 @@ async def get_offers(
                 Offer.skills_all.ilike(tech_pattern),
                 Offer.skills_languages.ilike(tech_pattern),
                 Offer.skills_frameworks.ilike(tech_pattern),
-                Offer.skills_tools.ilike(tech_pattern)
+                Offer.skills_tools.ilike(tech_pattern),
+                Offer.skills_certifications.ilike(tech_pattern),
+                Offer.skills_methodologies.ilike(tech_pattern)
             )
         )
 
@@ -434,9 +436,20 @@ async def get_offer(
 
 
 @router.get("/filters", response_model=FilterOptions)
-async def get_filter_options(db: Session = Depends(get_db)):
+async def get_filter_options(
+    user: Optional[User] = Depends(get_optional_user),
+    db: Session = Depends(get_db)
+):
     """Get available filter options based on current data."""
     base_query = _base_query(db)
+    
+    # Exclude offers favorited by the current user to match the offers list
+    if user:
+        base_query = base_query.filter(
+            ~Offer.id.in_(
+                db.query(Favorite.offer_id).filter(Favorite.user_id == user.id)
+            )
+        )
 
     categories = [
         r[0] for r in base_query.with_entities(Offer.category)
@@ -496,9 +509,21 @@ def _aggregate_technologies(query) -> list[str]:
 
 
 @router.get("/stats")
-async def get_stats(db: Session = Depends(get_db)):
+async def get_stats(
+    user: Optional[User] = Depends(get_optional_user),
+    db: Session = Depends(get_db)
+):
     """Get dashboard statistics."""
     base_query = _base_query(db)
+    
+    # Exclude offers favorited by the current user to match the search results
+    if user:
+        base_query = base_query.filter(
+            ~Offer.id.in_(
+                db.query(Favorite.offer_id).filter(Favorite.user_id == user.id)
+            )
+        )
+
     total_offers = base_query.count()
 
     by_source = dict(
@@ -591,9 +616,21 @@ async def get_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/stats/tech", response_model=TechStats)
-async def get_tech_stats(db: Session = Depends(get_db)):
+async def get_tech_stats(
+    user: Optional[User] = Depends(get_optional_user),
+    db: Session = Depends(get_db)
+):
     """Get detailed technology statistics."""
     base_query = _base_query(db)
+
+    # Exclude offers favorited by the current user to match the search results
+    if user:
+        base_query = base_query.filter(
+            ~Offer.id.in_(
+                db.query(Favorite.offer_id).filter(Favorite.user_id == user.id)
+            )
+        )
+
     total_offers = base_query.count()
 
     lang_counter = Counter()
@@ -608,9 +645,6 @@ async def get_tech_stats(db: Session = Depends(get_db)):
         Offer.skills_tools,
         Offer.skills_certifications,
         Offer.skills_methodologies,
-    ).filter(
-        Offer.skills_all.isnot(None),
-        Offer.skills_all != "[]",
     ).all()
 
     total_it = len(results)
