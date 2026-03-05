@@ -7,7 +7,7 @@
     <meta name="description" content="FUA - Find Ur Alternance">
     <title>FUA - Find Ur Alternance</title>
     <link rel="icon" type="image/png" href="img/logo-inv.png">
-    <link rel="stylesheet" href="css/style.css?v=32">
+    <link rel="stylesheet" href="css/style.css?v=33">
 </head>
 
 <body>
@@ -155,17 +155,27 @@
                     </div>
                     <div class="stats-grid">
                         <div class="stats-panel stats-panel-wide">
-                            <div class="stats-panel-header">
-                                <h3 class="stats-panel-title">Évolution du nombre d'offres</h3>
+                            <div class="stats-panel-header" id="timelineChartHeader">
+                                <div class="timeline-header-top">
+                                    <button class="btn-timeline-nav" id="timelinePrev" title="Plus ancien">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M15 18l-6-6 6-6" />
+                                        </svg>
+                                    </button>
+                                    <h3 class="stats-panel-title">Évolution du nombre d'offres</h3>
+                                    <button class="btn-timeline-nav" id="timelineNext" title="Plus récent" disabled>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M9 18l6-6-6-6" />
+                                        </svg>
+                                    </button>
+                                </div>
                                 <div class="timeline-controls">
-                                    <button class="btn-scale" id="timelinePrev" title="Plus ancien"
-                                        style="padding: 4px 10px; font-weight: bold;">&lsaquo;</button>
                                     <button class="btn-scale" data-scale="year">Annuel</button>
                                     <button class="btn-scale active" data-scale="month">Mensuel</button>
                                     <button class="btn-scale" data-scale="week">Hebdo</button>
                                     <button class="btn-scale" data-scale="day">Quotidien</button>
-                                    <button class="btn-scale" id="timelineNext" title="Plus récent"
-                                        style="padding: 4px 10px; font-weight: bold;" disabled>&rsaquo;</button>
                                 </div>
                             </div>
                             <div class="timeline-chart-container" id="timelineChartContainer">
