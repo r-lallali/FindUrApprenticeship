@@ -495,19 +495,19 @@ async def get_filter_options(
 
 
 def _aggregate_technologies(query) -> list[str]:
-    """Aggregate technologies directly in the database using PostgreSQL JSON functions."""
-    
-    # We use a subquery/cross-join pattern to unnest the JSONB array
-    stmt = query.with_entities(
-        func.jsonb_array_elements_text(cast(Offer.skills_all, JSONB)).label("tech")
-    ).subquery()
-    
-    results = query.session.query(stmt.c.tech, func.count())\
-        .group_by(stmt.c.tech)\
-        .order_by(desc(func.count()))\
-        .limit(50).all()
-        
-    return [r[0] for r in results]
+    """Aggregate technologies using a single fetch + Python Counter for speed."""
+    counter = Counter()
+    results = query.with_entities(Offer.skills_all).filter(
+        Offer.skills_all.isnot(None), Offer.skills_all != "[]"
+    ).all()
+    for (skills_json,) in results:
+        try:
+            skills = json.loads(skills_json)
+            if isinstance(skills, list):
+                counter.update(skills)
+        except Exception:
+            pass
+    return [tech for tech, _ in counter.most_common(50)]
 
 
 @router.get("/stats")
@@ -588,10 +588,9 @@ async def get_tech_stats(
     user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
-    """Get detailed technology statistics."""
+    """Get detailed technology statistics with simplified, fast queries."""
     base_query = _base_query(db)
 
-    # Exclude offers favorited by the current user to match the search results
     if user:
         base_query = base_query.filter(
             ~Offer.id.in_(
@@ -599,86 +598,70 @@ async def get_tech_stats(
             )
         )
 
-    total_offers = base_query.count()
+    # 1. Fetch ALL skill data in a single query (MUCH faster than multiple subqueries for 3k-10k rows)
+    results = base_query.with_entities(
+        Offer.skills_languages,
+        Offer.skills_frameworks,
+        Offer.skills_tools,
+        Offer.skills_certifications,
+        Offer.skills_methodologies,
+    ).all()
 
-    def get_json_counts(field, limit=15):
-        try:
-            stmt = base_query.with_entities(
-                func.jsonb_array_elements_text(cast(field, JSONB)).label("item")
-            ).subquery()
-            
-            return [{"name": r[0], "count": r[1]} for r in db.query(stmt.c.item, func.count())
-                    .group_by(stmt.c.item)
-                    .order_by(desc(func.count()))
-                    .limit(limit).all()]
-        except Exception:
-            return []
+    lang_counter = Counter()
+    fw_counter = Counter()
+    tool_counter = Counter()
+    cert_counter = Counter()
+    method_counter = Counter()
 
-    top_languages = get_json_counts(Offer.skills_languages)
-    top_frameworks = get_json_counts(Offer.skills_frameworks)
-    top_tools = get_json_counts(Offer.skills_tools)
-    top_certifications = get_json_counts(Offer.skills_certifications)
-    top_methodologies = get_json_counts(Offer.skills_methodologies)
-    
-    # Global IT count
-    total_it = base_query.filter(
-        Offer.skills_all.isnot(None), 
-        Offer.skills_all != "[]"
-    ).count()
+    for langs, fws, tools, certs, methods in results:
+        for data, counter in [
+            (langs, lang_counter), (fws, fw_counter), (tools, tool_counter),
+            (certs, cert_counter), (methods, method_counter)
+        ]:
+            if data:
+                try:
+                    items = json.loads(data)
+                    if isinstance(items, list):
+                        counter.update(items)
+                except Exception:
+                    pass
 
-    # Step 1: Get the top company names based on the company field
-    raw_top_companies = base_query.with_entities(func.trim(Offer.company))\
+    # 2. Get top companies, departments and categories in simple group_by queries
+    top_companies_raw = base_query.with_entities(func.trim(Offer.company), func.count(Offer.id))\
         .filter(Offer.company.isnot(None), Offer.company != "")\
         .group_by(func.trim(Offer.company))\
         .order_by(desc(func.count(Offer.id)))\
         .limit(15).all()
-    
-    # Step 2: Compute broad counts (matching keyword search) for each of these companies
-    # To optimize this, we'll combine them into a single query if possible, 
-    # but for now let's at least keep it separate from the IT processing.
-    top_companies = []
-    company_names = [r[0] for r in raw_top_companies]
-    
-    # Still doing it one by one for now but it's much faster than IT processing
-    for name in company_names:
-        name_filter = f"%{name}%"
-        count = base_query.filter(
-            or_(
-                Offer.company.ilike(name_filter),
-                Offer.title.ilike(name_filter),
-                Offer.description.ilike(name_filter)
-            )
-        ).count()
-        top_companies.append({"name": name, "count": count})
-    
-    top_companies.sort(key=lambda x: x["count"], reverse=True)
 
-    top_departments_query = base_query.with_entities(func.trim(Offer.department), func.count(Offer.id))\
+    top_departments_raw = base_query.with_entities(func.trim(Offer.department), func.count(Offer.id))\
         .filter(Offer.department.isnot(None), Offer.department != "")\
         .group_by(func.trim(Offer.department))\
         .order_by(desc(func.count(Offer.id)))\
         .limit(10).all()
 
-    top_categories_query = base_query.with_entities(func.trim(Offer.category), func.count(Offer.id))\
+    top_categories_raw = base_query.with_entities(func.trim(Offer.category), func.count(Offer.id))\
         .filter(Offer.category.isnot(None), Offer.category != "")\
         .group_by(func.trim(Offer.category))\
         .order_by(desc(func.count(Offer.id)))\
         .limit(10).all()
 
-    def format_query(q) -> list[dict]:
-        return [{"name": str(name), "count": count} for name, count in q]
+    def format_list(counter, limit=15):
+        return [{"name": name, "count": count} for name, count in counter.most_common(limit)]
+
+    def format_query_results(rows):
+        return [{"name": str(name), "count": count} for name, count in rows]
 
     return TechStats(
-        top_languages=top_languages,
-        top_frameworks=top_frameworks,
-        top_tools=top_tools,
-        top_certifications=top_certifications,
-        top_methodologies=top_methodologies,
-        total_it_offers=total_it,
-        total_offers=total_offers,
-        top_departments=format_query(top_departments_query),
-        top_companies=top_companies,
-        top_categories=format_query(top_categories_query)
+        top_languages=format_list(lang_counter),
+        top_frameworks=format_list(fw_counter),
+        top_tools=format_list(tool_counter),
+        top_certifications=format_list(cert_counter),
+        top_methodologies=format_list(method_counter),
+        total_it_offers=len(results),
+        total_offers=base_query.count(),
+        top_departments=format_query_results(top_departments_raw),
+        top_companies=format_query_results(top_companies_raw),
+        top_categories=format_query_results(top_categories_raw)
     )
 
 
