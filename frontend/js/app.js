@@ -441,25 +441,26 @@ document.addEventListener('DOMContentLoaded', () => {
     let isStatsLoading = false;
     async function loadTechStats(silent = false, force = false) {
         if (isStatsLoading) return;
+
+        // Start timeline loading in parallel (it's independent)
+        const timelinePromise = loadTimelineChart(silent, force);
+
         try {
             if (force || !cachedTechStats || !cachedGeneralStats) {
                 isStatsLoading = true;
-                if (force || !cachedTechStats) {
-                    cachedTechStats = await API.getTechStats();
-                }
-                if (force || !cachedGeneralStats) {
-                    cachedGeneralStats = await API.getStats();
-                }
+                const [techRes, statsRes] = await Promise.all([
+                    (force || !cachedTechStats) ? API.getTechStats() : Promise.resolve(cachedTechStats),
+                    (force || !cachedGeneralStats) ? API.getStats() : Promise.resolve(cachedGeneralStats)
+                ]);
+                cachedTechStats = techRes;
+                cachedGeneralStats = statsRes;
             }
 
             const stats = cachedTechStats;
             const generalStats = cachedGeneralStats;
 
-
-
-
-            // Load timeline chart
-            loadTimelineChart(silent);
+            // Wait for timeline if it was requested (it handles its own rendering)
+            await timelinePromise;
 
             renderBarChart('chartCompanies', stats.top_companies, 'fw', 'keyword');
             renderBarChart('chartDepartments', stats.top_departments, 'tool', 'department');
@@ -633,7 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function loadTimelineChart(silent = false, direction = null, originX = '50%') {
+    async function loadTimelineChart(silent = false, force = false, direction = null, originX = '50%') {
         const loading = document.getElementById('timelineLoading');
         if (!loading) return;
 
@@ -644,7 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             let apiScale = currentTimelineScale === 'year' ? 'month' : currentTimelineScale;
-            if (!cachedTimelineData[apiScale]) {
+            if (force || !cachedTimelineData[apiScale]) {
                 const data = await API.getTimelineStats(apiScale);
                 cachedTimelineData[apiScale] = Array.isArray(data) ? data : [];
             }

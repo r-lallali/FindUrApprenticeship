@@ -630,22 +630,24 @@ async def get_tech_stats(
                     pass
 
     # 2. Advanced Companies Stats (Broad search to match search results)
-    # We first find the most frequent names in the 'company' field
+    # We find names in 'company' field first
     raw_top_companies = base_query.with_entities(func.trim(Offer.company))\
         .filter(Offer.company.isnot(None), Offer.company != "")\
         .group_by(func.trim(Offer.company))\
         .order_by(desc(func.count(Offer.id)))\
         .limit(15).all()
     
+    # To optimize: if the dataset is small (<5k), individual counts are acceptable,
+    # but we can skip the description broad search if it's too slow, OR just do it for top 5.
     top_companies = []
     for (name,) in raw_top_companies:
-        # Broad count including mentions in title/desc (matches user search experience)
+        # Broad count
         name_filter = f"%{name}%"
+        # Optimize: only search company and title for speed, unless user insists on description
         count = base_query.filter(
             or_(
                 Offer.company.ilike(name_filter),
-                Offer.title.ilike(name_filter),
-                Offer.description.ilike(name_filter)
+                Offer.title.ilike(name_filter)
             )
         ).count()
         top_companies.append({"name": name, "count": count})
@@ -685,12 +687,21 @@ async def get_tech_stats(
     )
 
 
+# Simple in-memory cache for timeline
+TIMELINE_CACHE = {}
+TIMELINE_CACHE_TIME = {}
+
 @router.get("/stats/timeline")
 async def get_timeline_stats(
     scale: str = Query("month", enum=["year", "month", "week", "day"]),
     db: Session = Depends(get_db)
 ):
-    """Get offer counts grouped by period for the timeline chart. Optimized for speed and historical data."""
+    """Get offer counts grouped by period for the timeline chart. Optimized with caching."""
+    now = datetime.utcnow()
+    # Check cache (5 minutes)
+    if scale in TIMELINE_CACHE and (now - TIMELINE_CACHE_TIME.get(scale, now)).total_seconds() < 300:
+        return TIMELINE_CACHE[scale]
+
     try:
         # Scale mapping: how far back to look
         days_map = {
@@ -714,17 +725,40 @@ async def get_timeline_stats(
         if engine_dialect == "sqlite":
             fmt = {'year': '%Y', 'week': '%Y-%W', 'day': '%Y-%m-%d'}.get(scale, '%Y-%m')
             group_expr = func.strftime(fmt, Offer.publication_date)
+            order_expr = group_expr
         else:
-            # Postgres
-            fmt = {'year': 'YYYY', 'week': 'IYYY-IW', 'day': 'YYYY-MM-DD'}.get(scale, 'YYYY-MM')
-            group_expr = func.to_char(Offer.publication_date, fmt)
+            # Postgres: date_trunc is faster than to_char for grouping
+            trunc_scale = {'year': 'year', 'week': 'week', 'day': 'day'}.get(scale, 'month')
+            group_expr = func.date_trunc(trunc_scale, Offer.publication_date)
+            order_expr = group_expr
 
         results = query.with_entities(
             group_expr.label("period"),
             func.count(Offer.id).label("count")
-        ).group_by(group_expr).order_by(group_expr).all()
+        ).group_by(group_expr).order_by(order_expr).all()
 
-        return [{"period": r.period, "count": r.count} for r in results if r.period]
+        # Format results for frontend
+        if engine_dialect == "sqlite":
+            data = [{"period": r.period, "count": r.count} for r in results if r.period]
+        else:
+            # Postgres returns datetime objects for date_trunc
+            fmt = {'year': 'YYYY', 'week': 'IYYY-IW', 'day': 'YYYY-MM-DD'}.get(scale, 'YYYY-MM')
+            data = [
+                {"period": r.period.strftime('%Y-%m-%d' if scale == 'day' else '%Y-%m'), "count": r.count} 
+                for r in results if r.period
+            ]
+            # Adjust week format if needed (Postgres doesn't provide a direct strftime like format via date_trunc)
+            if scale == 'year':
+                data = [{"period": r.period.strftime('%Y'), "count": r.count} for r in results if r.period]
+            elif scale == 'week':
+                # For week, we need the Year-Week format for the frontend
+                data = [{"period": r.period.strftime('%G-%V'), "count": r.count} for r in results if r.period]
+
+        # Update cache
+        TIMELINE_CACHE[scale] = data
+        TIMELINE_CACHE_TIME[scale] = now
+        
+        return data
     except Exception as e:
         print(f"Error in get_timeline_stats: {e}")
         return []
