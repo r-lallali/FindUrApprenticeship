@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from scrapers.base_scraper import BaseScraper
-from scrapers.utils import is_school_offer, clean_text, enrich_location, normalize_profile, normalize_salary
+from scrapers.utils import is_school_offer, clean_text, enrich_location, normalize_profile, normalize_salary, parse_french_date
 
 
 class LinkedInScraper(BaseScraper):
@@ -295,7 +295,7 @@ class LinkedInScraper(BaseScraper):
                         pass
 
             if not pub_date:
-                pub_date = self._parse_relative_date(raw_data.get("date_text", ""))
+                pub_date = parse_french_date(raw_data.get("date_text", ""))
 
             # Try to extract profile from title
             profile = normalize_profile(title)

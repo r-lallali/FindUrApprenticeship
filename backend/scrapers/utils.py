@@ -1,7 +1,9 @@
 """Utility functions for scraping: school detection, text cleaning, etc."""
 
 import re
-from typing import Optional, Dict
+import json
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Tuple
 
 # Keywords that indicate an offer is from a school rather than a company
 SCHOOL_KEYWORDS = [
@@ -406,3 +408,77 @@ def normalize_salary(salary_text: Optional[str]) -> tuple[Optional[str], Optiona
         return val, val
 
     return None, None
+def parse_french_date(date_text: str) -> Optional[datetime]:
+    """
+    Parse French date strings (absolute or relative) into a datetime object.
+    Supports:
+    - "Aujourd'hui", "Hier"
+    - "Il y a X jours", "Il y a X semaines", "Il y a X mois"
+    - "25/02/2026", "25 févr. 2026", "25 février 2026"
+    """
+    if not date_text:
+        return None
+
+    date_text = date_text.lower().strip()
+    now = datetime.utcnow()
+
+    # 1. Relative dates
+    if "aujourd" in date_text or "à l'instant" in date_text:
+        return now
+    if "hier" in date_text:
+        return now - timedelta(days=1)
+    
+    # "il y a X ..."
+    match_ago = re.search(r"il y a (\d+) (jour|semaine|mois|heure|minute)", date_text)
+    if match_ago:
+        n = int(match_ago.group(1))
+        unit = match_ago.group(2)
+        if "heure" in unit:
+            return now - timedelta(hours=n)
+        if "minute" in unit:
+            return now - timedelta(minutes=n)
+        if "jour" in unit:
+            return now - timedelta(days=n)
+        if "semaine" in unit:
+            return now - timedelta(weeks=n)
+        if "mois" in unit:
+            return now - timedelta(days=n * 30) # Approximation
+
+    # 2. Absolute dates (DD/MM/YYYY)
+    match_abs = re.search(r"(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})", date_text)
+    if match_abs:
+        day, month, year = match_abs.groups()
+        if len(year) == 2:
+            year = "20" + year
+        try:
+            return datetime(int(year), int(month), int(day))
+        except ValueError:
+            pass
+
+    # 3. Textual months (25 février 2026, 25 févr. 2026)
+    months_fr = {
+        "janv": 1, "févr": 2, "fevr": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6,
+        "juil": 7, "août": 8, "aout": 8, "sept": 9, "octo": 10, "nove": 11, "déce": 12, "dece": 12,
+        "janvier": 1, "février": 2, "fevrier": 2, "avril": 4, "juillet": 7, "septembre": 9,
+        "octobre": 10, "novembre": 11, "décembre": 12
+    }
+    
+    # Match pattern: Day Month Year (e.g. 25 février 2026)
+    match_text = re.search(r"(\d{1,2})\s+([a-zéû\.]+)\s+(\d{4})", date_text)
+    if match_text:
+        day, month_str, year = match_text.groups()
+        month_str = month_str.replace(".", "")
+        if month_str in months_fr:
+            try:
+                return datetime(int(year), months_fr[month_str], int(day))
+            except ValueError:
+                pass
+        # Check prefixes
+        for m_name, m_val in months_fr.items():
+            if month_str.startswith(m_name[:4]):
+                try:
+                    return datetime(int(year), m_val, int(day))
+                except ValueError:
+                    continue
+
+    return None

@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from scrapers.base_scraper import BaseScraper
-from scrapers.utils import is_school_offer, clean_text, enrich_location, normalize_profile, normalize_salary
+from scrapers.utils import is_school_offer, clean_text, enrich_location, normalize_profile, normalize_salary, parse_french_date
 
 
 class HelloWorkScraper(BaseScraper):
@@ -207,6 +207,7 @@ class HelloWorkScraper(BaseScraper):
                             "description": "Voir l'offre pour la description complète",
                             "salary_text": salary_text,
                             "_id": offer_id,
+                            "date_text": card.find(attrs={"data-cy": "publishDateCard"}).get_text(strip=True) if card.find(attrs={"data-cy": "publishDateCard"}) else "",
                         }
                     )
                 except Exception as e:
@@ -233,6 +234,23 @@ class HelloWorkScraper(BaseScraper):
             except Exception:
                 pass
 
+        # Date parsing logic:
+        # 1. Try from the card's relative/absolute text
+        # 2. Try to find a date in the full description (e.g. "Publiée le 25/02/2026")
+        pub_date = parse_french_date(raw_data.get("date_text", ""))
+        
+        if not pub_date and raw_data.get("description"):
+            # Look for common patterns in description footer
+            desc = raw_data["description"]
+            match = re.search(r"publiée le\s+(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})", desc, re.IGNORECASE)
+            if match:
+                pub_date = parse_french_date(match.group(1))
+            else:
+                # Try textual match "25 février 2026"
+                match = re.search(r"publiée le\s+(\d{1,2}\s+[a-zéû\.]+\s+\d{4})", desc, re.IGNORECASE)
+                if match:
+                    pub_date = parse_french_date(match.group(1))
+
         return {
             "title": clean_text(raw_data["title"]),
             "company": clean_text(raw_data["company"]),
@@ -245,7 +263,7 @@ class HelloWorkScraper(BaseScraper):
             "description": clean_text(raw_data["description"]),
             "profile": None,
             "category": None,
-            "publication_date": datetime.utcnow(),
+            "publication_date": pub_date or datetime.utcnow(),
             "source": "hellowork",
             "url": raw_data["url"],
             "source_id": f"hw_{raw_data.get('_id', '')}",

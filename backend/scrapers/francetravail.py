@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from scrapers.base_scraper import BaseScraper
-from scrapers.utils import is_school_offer, clean_text, enrich_location, normalize_profile, normalize_salary
+from scrapers.utils import is_school_offer, clean_text, enrich_location, normalize_profile, normalize_salary, parse_french_date
 
 
 class FranceTravailScraper(BaseScraper):
@@ -284,11 +284,9 @@ class FranceTravailScraper(BaseScraper):
                 except (ValueError, TypeError):
                     pass
             if not pub_date:
-                date_text = raw_data.get("date_text", "").lower()
-                if "aujourd" in date_text:
-                    pub_date = datetime.utcnow()
-                elif "hier" in date_text:
-                    pub_date = datetime.utcnow() - timedelta(days=1)
+                date_text = raw_data.get("date_text", "")
+                pub_date = parse_french_date(date_text)
+                
             if not pub_date:
                 pub_date = datetime.utcnow()
 
