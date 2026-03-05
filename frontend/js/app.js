@@ -474,18 +474,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartWrapper = document.getElementById('timelineChartContainer');
         if (!chartWrapper) return;
 
-        // Remove old listeners to avoid duplicates
-        const newWrapper = chartWrapper.cloneNode(true);
-        chartWrapper.parentNode.replaceChild(newWrapper, chartWrapper);
-
         let touchStartX = 0;
         let touchEndX = 0;
 
-        newWrapper.addEventListener('touchstart', e => {
+        chartWrapper.addEventListener('touchstart', e => {
             touchStartX = e.changedTouches[0].screenX;
         }, { passive: true });
 
-        newWrapper.addEventListener('touchend', e => {
+        chartWrapper.addEventListener('touchend', e => {
             touchEndX = e.changedTouches[0].screenX;
             handleSwipe();
         }, { passive: true });
@@ -512,6 +508,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initTimelineControls() {
+        attachTimelineSwipe();
+
         // Use event delegation or direct naming for reliability
         const container = document.getElementById('timelineChartHeader');
         if (!container) return;
@@ -962,8 +960,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (timelineObserver) timelineObserver.disconnect();
         timelineObserver = new MutationObserver(draw);
         timelineObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-
-        attachTimelineSwipe();
     }
 
     function renderBarChart(containerId, data, cssClass, filterType) {
