@@ -275,11 +275,24 @@ NON_ALTERNANCE_KEYWORDS = [
     "intérim",
     "interim",
     "vacation",
+    "vacataire",
     "cdd classique",
     "cdd de droit commun",
     "pas en alternance",
     "hors alternance",
     "livecampus",
+    "poste à pourvoir immédiatement",
+    "poste a pourvoir immediatement",
+    "reprise d'ancienneté",
+    "reprise d'anciennete",
+    "ancienneté reprise",
+    "directeur adjoint",
+    "directrice adjointe",
+    "chef de service",
+    "responsable adjoint",
+    "responsable de magasin",
+    "poste en cdi",
+    "poste en cdd",
 ]
 
 # Keywords that suggest an offer is for a graduated profile (CDI/CDD) rather than an alternant
@@ -292,6 +305,14 @@ GRADUATED_INDICATORS = [
     "expérimenté", "expert", "responsable de dossier",
     "de formation en comptabilité", "en cabinet d'expertise-comptable",
     "minimum 2 ans", "minimum 3 ans", "minimum 5 ans",
+    "diplôme d'état requis", "diplôme d'état exigé", "diplôme d'état obligatoire",
+    "de requis", "de obligatoire", "de exigé", "diplôme requis", "diplome requis",
+    "titre requis", "carte professionnelle requis", "carte pro requis",
+    "expérience exigée", "experience exigee", "expérience confirmée",
+    "expérience de 2 ans", "expérience de 3 ans", "expérience de 5 ans",
+    "expérience de 10 ans", "expérience de 15 ans",
+    "reprise de l'ancienneté", "rémunération selon profil",
+    "rémunération selon expérience", "reprise d'ancienneté",
 ]
 
 ALTERNANCE_POSITIVE = [
@@ -322,22 +343,44 @@ def is_alternance_offer(title: str, description: Optional[str] = None,
     # Check for negative signals (non-alternance CDD/CDI patterns)
     has_non_alternance = any(kw in text for kw in NON_ALTERNANCE_KEYWORDS)
 
-    # 1. Reject if non-alternance keywords found and no alternance keywords
-    if has_non_alternance and not has_alternance:
+    # 1. Reject if non-alternance keywords found and no strong alternance signal in title
+    if has_non_alternance and not has_alternance_in_title:
         return False
-
-    # 2. Reject if it looks like a CDI for graduates
-    # Only if 'alternance' is NOT in the title, we check more strictly for graduate patterns
+        
+    # 2. Strict exclusion for medical/regulated professions if no 'alternant' in title
     if not has_alternance_in_title:
-        # Pattern for "X ans"
-        exp_match = re.search(r'(\d+)\s*(?:ans|années?)\b', desc_val)
+        # Check for regulated professions that are often misclassified
+        regulated = ["infirmier", "infirmière", "aide-soignant", "aide soignant", "médecin", "docteur", "pharmacien", "chirurgien", "dentiste", "kinésithérapeute", "sage-femme"]
+        if any(prof in title_val for prof in regulated):
+            # If regulated profession and mentions "diplôme d'état" or "de requis"
+            # We are more aggressive even if "étudiant" is mentioned if it looks like mentoring
+            if any(ind in desc_val for ind in ["diplôme d'état", "de requis", "diplôme requis"]):
+                # If "encadrer les étudiants" or similar is the only mention of students, it's still a professional job
+                learning = ["apprenti", "alternance", "apprentissage", "contrat pro"]
+                if not any(l in desc_val for l in learning):
+                    # Even if "étudiant" is there, if it's "encadrer" or "tuteur", it's a pro job
+                    if "étudiant" in desc_val and any(exp in desc_val for exp in ["encadrer", "encadrement", "tutorat", "former les"]):
+                        return False
+                    # If no other learning keywords, then it's likely a pro job
+                    if not any(l in desc_val for l in ["alternance", "apprenti"]):
+                        return False
+
+    # 3. Strong negative signal: 'reprise d'ancienneté' or professional experience requirement
+    if not has_alternance_in_title:
+        if any(kw in text for kw in ["reprise d'ancienneté", "reprise d'anciennete", "reprise de l'ancienneté"]):
+            return False
+
+    # 4. Reject if it looks like a CDI/CDD for graduates
+    if not has_alternance_in_title:
+        # Pattern for "X ans" - more aggressive, 1 year might be okay for some, but 2+ is very suspicious
+        exp_match = re.search(r'(\d+)\s*(?:ans|années?|ans d\'expérience)\b', desc_val)
         if exp_match:
             years = int(exp_match.group(1))
             if years >= 2:
                 # If it mentions experience or similar context and NO current student keywords
-                if any(kw in desc_val for kw in ["expérience", "experience", "en cabinet", "pratique professionnel"]):
-                    # Avoid flagging if alternance is clearly mentioned in the description
-                    if not any(kw in desc_val for kw in ["stage", "apprentissage", "alternant", "apprenti"]):
+                if any(kw in desc_val for kw in ["expérience", "experience", "en cabinet", "pratique professionnel", "justifiez d'une", "maîtrise des"]):
+                    # If "alternance" or "apprentissage" is NOT in the text at all, reject
+                    if not any(kw in text for kw in ["stage", "apprentissage", "alternant", "apprenti"]):
                         return False
         
         # Count graduated indicators
@@ -346,7 +389,12 @@ def is_alternance_offer(title: str, description: Optional[str] = None,
             if ind in desc_val:
                 indicators_found += 1
         
+        # If we have multiple graduate indicators, it's likely not an alternance
         if indicators_found >= 2:
+            return False
+            
+        # Check for standalone "CDI" if no alternance keywords are present
+        if "cdi" in text and not any(kw in text for kw in ["alternance", "apprentissage", "contrat pro"]):
             return False
 
     return True
