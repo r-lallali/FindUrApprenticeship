@@ -340,7 +340,9 @@ async def get_offers(
     if source:
         query = query.filter(Offer.source == source)
     if technology:
-        query = query.filter(Offer.skills_all.ilike(f"%{technology}%"))
+        # Search for the technology as a quoted string in the JSON list to avoid partial matches
+        # e.g., "Java" should not match "JavaScript"
+        query = query.filter(Offer.skills_all.ilike(f'%"{technology}"%'))
 
     # Date filters
     if date_filter:
