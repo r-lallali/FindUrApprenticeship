@@ -588,7 +588,7 @@ async def get_tech_stats(
     user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db)
 ):
-    """Get detailed technology statistics with accuracy and performance."""
+    """Get detailed technology statistics with maximum performance (One-pass scan)."""
     base_query = _base_query(db)
 
     if user:
@@ -598,90 +598,96 @@ async def get_tech_stats(
             )
         )
 
-    # 1. Fetch skill data and compute IT count accurately
-    # We fetch only rows that HAVE skills to be faster and accurate
-    results = base_query.with_entities(
+    # ONE single fetch for all relevant data needed for stats
+    # 3300 rows * 8 fields = ~26k data points, perfectly fits in memory for rapid sorting
+    all_data = base_query.with_entities(
         Offer.skills_languages,
         Offer.skills_frameworks,
         Offer.skills_tools,
         Offer.skills_certifications,
         Offer.skills_methodologies,
-    ).filter(Offer.skills_all.isnot(None), Offer.skills_all != "[]").all()
+        Offer.company,
+        Offer.title,
+        Offer.description,
+        Offer.department,
+        Offer.category
+    ).all()
 
-    total_it = len(results)
+    total_offers = len(all_data)
     
+    # Simple counters for skill sets
     lang_counter = Counter()
     fw_counter = Counter()
     tool_counter = Counter()
     cert_counter = Counter()
     method_counter = Counter()
+    
+    # Counters for metadata
+    company_field_counter = Counter()  # Base counts for identification
+    dept_counter = Counter()
+    cat_counter = Counter()
+    
+    # List to store normalized match data for the accurate company counts
+    match_list = []
+    it_offers_count = 0
 
-    for langs, fws, tools, certs, methods in results:
-        for data, counter in [
-            (langs, lang_counter), (fws, fw_counter), (tools, tool_counter),
-            (certs, cert_counter), (methods, method_counter)
-        ]:
+    for langs, fws, tools, certs, methods, company, title, desc_text, dept, cat in all_data:
+        # 1. Process Metadata
+        if company: company_field_counter.update([company.strip()])
+        if dept: dept_counter.update([dept.strip()])
+        if cat: cat_counter.update([cat.strip()])
+        
+        # 2. Process Skills
+        has_skills = False
+        for data, counter in [(langs, lang_counter), (fws, fw_counter), (tools, tool_counter), 
+                             (certs, cert_counter), (methods, method_counter)]:
             if data:
                 try:
                     items = json.loads(data)
                     if isinstance(items, list):
                         counter.update(items)
-                except Exception:
-                    pass
+                        if items: has_skills = True
+                except Exception: pass
+        
+        if has_skills: it_offers_count += 1
+        
+        # 3. Store normalized data for later accurate company searching
+        match_list.append({
+            "comp_normalized": company.lower().strip() if company else "",
+            "title_normalized": title.lower() if title else "",
+            "desc_normalized": desc_text.lower() if desc_text else ""
+        })
 
-    # 2. Advanced Companies Stats (Broad search to match search results)
-    # We first find the most frequent names in the 'company' field
-    raw_top_companies = base_query.with_entities(func.trim(Offer.company))\
-        .filter(Offer.company.isnot(None), Offer.company != "")\
-        .group_by(func.trim(Offer.company))\
-        .order_by(desc(func.count(Offer.id)))\
-        .limit(15).all()
+    # 4. Resolve accurate company counts (Top 15 names, but counts include mentions)
+    top15_names = [name for name, _ in company_field_counter.most_common(15)]
+    top_companies_resolved = []
     
-    top_companies = []
-    for (name,) in raw_top_companies:
-        # Broad count including mentions in title/desc (matches user search experience)
-        name_filter = f"%{name}%"
-        count = base_query.filter(
-            or_(
-                Offer.company.ilike(name_filter),
-                Offer.title.ilike(name_filter),
-                Offer.description.ilike(name_filter)
-            )
-        ).count()
-        top_companies.append({"name": name, "count": count})
+    for name in top15_names:
+        lower_name = name.lower()
+        accurate_count = 0
+        for m in match_list:
+            if (lower_name in m["comp_normalized"] or 
+                lower_name in m["title_normalized"] or 
+                lower_name in m["desc_normalized"]):
+                accurate_count += 1
+        top_companies_resolved.append({"name": name, "count": accurate_count})
     
-    top_companies.sort(key=lambda x: x["count"], reverse=True)
+    top_companies_resolved.sort(key=lambda x: x["count"], reverse=True)
 
-    # 3. Simple group_by for departments and categories
-    top_departments_raw = base_query.with_entities(func.trim(Offer.department), func.count(Offer.id))\
-        .filter(Offer.department.isnot(None), Offer.department != "")\
-        .group_by(func.trim(Offer.department))\
-        .order_by(desc(func.count(Offer.id)))\
-        .limit(10).all()
-
-    top_categories_raw = base_query.with_entities(func.trim(Offer.category), func.count(Offer.id))\
-        .filter(Offer.category.isnot(None), Offer.category != "")\
-        .group_by(func.trim(Offer.category))\
-        .order_by(desc(func.count(Offer.id)))\
-        .limit(10).all()
-
-    def format_list(counter, limit=15):
+    def format_counter(counter, limit=15):
         return [{"name": name, "count": count} for name, count in counter.most_common(limit)]
 
-    def format_query_results(rows):
-        return [{"name": str(name), "count": count} for name, count in rows]
-
     return TechStats(
-        top_languages=format_list(lang_counter),
-        top_frameworks=format_list(fw_counter),
-        top_tools=format_list(tool_counter),
-        top_certifications=format_list(cert_counter),
-        top_methodologies=format_list(method_counter),
-        total_it_offers=total_it,
-        total_offers=base_query.count(),
-        top_departments=format_query_results(top_departments_raw),
-        top_companies=top_companies,
-        top_categories=format_query_results(top_categories_raw)
+        top_languages=format_counter(lang_counter),
+        top_frameworks=format_counter(fw_counter),
+        top_tools=format_counter(tool_counter),
+        top_certifications=format_counter(cert_counter),
+        top_methodologies=format_counter(method_counter),
+        total_it_offers=it_offers_count,
+        total_offers=total_offers,
+        top_departments=format_counter(dept_counter, 10),
+        top_companies=top_companies_resolved,
+        top_categories=format_counter(cat_counter, 10)
     )
 
 
