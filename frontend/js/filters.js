@@ -117,8 +117,8 @@ const Filters = (() => {
             sidebarToggle.addEventListener('click', () => {
                 sidebar.classList.toggle('open');
                 sidebarToggle.textContent = sidebar.classList.contains('open')
-                    ? '✕ Fermer les filtres'
-                    : '⚙️ Filtres';
+                    ? 'Fermer les filtres'
+                    : 'Filtres';
             });
         }
     }
