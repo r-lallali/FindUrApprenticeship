@@ -185,13 +185,14 @@ class LaBonneAlternanceScraper(BaseScraper):
             if not isinstance(job_data, dict):
                 job_data = {}
 
-            description = job_data.get("description", "").strip()
+            description = (job_data.get("description") or "").strip()
 
             # Fallback to ROME definition if description is missing
             if not description:
-                rome_details = raw_data.get("romeDetails", {})
+                # Check root or nested in job
+                rome_details = raw_data.get("romeDetails") or job_data.get("romeDetails")
                 if isinstance(rome_details, dict):
-                    description = rome_details.get("definition", "").strip()
+                    description = (rome_details.get("definition") or "").strip()
             
             # Second fallback: use ROME labels
             if not description:
