@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let cachedTimelineData = {};
     let cachedTechStats = null;
     let cachedGeneralStats = null;
+    let statsLastFetch = 0; // Timestamp for stats cache
 
     // ===== INITIALIZATION =====
     initTheme();
@@ -444,8 +445,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isStatsLoading = false;
     async function loadTechStats(silent = false, force = false) {
-        // If we have data and it's not a forced reload, we can render immediately
-        if (!force && cachedTechStats && cachedGeneralStats) {
+        const now = Date.now();
+        // If we have data and it's not a forced reload, and cache is fresh, we can render immediately
+        // Use cache only if less than 5 minutes old (300,000 ms)
+        if (!force && cachedTechStats && cachedGeneralStats && (now - statsLastFetch < 300000)) {
             renderStatsUI(cachedTechStats, cachedGeneralStats, silent);
             if (silent) return; // Background pre-render done
         }
@@ -456,13 +459,14 @@ document.addEventListener('DOMContentLoaded', () => {
             isStatsLoading = true;
 
             // Fetch in parallel for speed
-            const [techData, generalData] = await Promise.all([
-                (force || !cachedTechStats) ? API.getTechStats() : Promise.resolve(cachedTechStats),
-                (force || !cachedGeneralStats) ? API.getStats() : Promise.resolve(cachedGeneralStats)
+            const [techStats, generalStats] = await Promise.all([
+                API.getTechStats(),
+                API.getStats()
             ]);
 
-            cachedTechStats = techData;
-            cachedGeneralStats = generalData;
+            cachedTechStats = techStats;
+            cachedGeneralStats = generalStats;
+            statsLastFetch = Date.now(); // Update timestamp after successful fetch
 
             renderStatsUI(cachedTechStats, cachedGeneralStats, silent);
         } catch (err) {
@@ -656,12 +660,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             let apiScale = currentTimelineScale === 'year' ? 'month' : currentTimelineScale;
-            if (!cachedTimelineData[apiScale]) {
+            // Only use cache if it's less than 5 minutes old
+            const now = Date.now();
+            const cacheEntry = cachedTimelineData[apiScale];
+
+            if (!cacheEntry || (now - (cacheEntry.timestamp || 0) > 300000)) {
                 const data = await API.getTimelineStats(apiScale);
-                cachedTimelineData[apiScale] = Array.isArray(data) ? data : [];
+                cachedTimelineData[apiScale] = {
+                    data: Array.isArray(data) ? data : [],
+                    timestamp: now
+                };
             }
 
-            const fullData = cachedTimelineData[apiScale];
+            const fullData = cachedTimelineData[apiScale].data;
             console.log(`DEBUG: Timeline load scale=${currentTimelineScale}, points=${fullData ? fullData.length : 0}`);
 
             if (fullData && fullData.length > 0) {
@@ -669,9 +680,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let maxPoints = 12;
                 if (currentTimelineScale === 'year') maxPoints = 12;
-                if (currentTimelineScale === 'month') maxPoints = 3;
-                if (currentTimelineScale === 'week') maxPoints = 4;
-                if (currentTimelineScale === 'day') maxPoints = 3; // Focus on 3 days
+                if (currentTimelineScale === 'month') maxPoints = 6;  // Show half year
+                if (currentTimelineScale === 'week') maxPoints = 8;   // Show 2 months
+                if (currentTimelineScale === 'day') maxPoints = 7;    // Show a full week
 
                 const endIndex = fullData.length - currentTimelineOffset;
                 const startIndex = Math.max(0, endIndex - maxPoints);
