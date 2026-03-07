@@ -5,6 +5,7 @@ Documentation: https://labonnealternance.apprentissage.beta.gouv.fr/api/docs
 This is an official French government API providing alternance offers.
 """
 
+import asyncio
 import httpx
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -75,7 +76,6 @@ class LaBonneAlternanceScraper(BaseScraper):
         else:
             codes_to_search = rome_codes
 
-        import asyncio
         all_offers = []
         seen_ids = set()
 
@@ -189,11 +189,48 @@ class LaBonneAlternanceScraper(BaseScraper):
 
             # Extract company info
             company_data = raw_data.get("company", {})
+            contact_data = raw_data.get("contact", {})
+            job_data = raw_data.get("job", {}) or {}
+            
+            company_name = "Entreprise confidentielle"
             if isinstance(company_data, dict):
-                company_name = company_data.get("name", "Entreprise confidentielle")
-            else:
-                company_name = str(company_data) if company_data else "Entreprise confidentielle"
+                company_name = company_data.get("name")
+            
+            # Identify if the name is truly confidential or missing
+            is_confidential = not company_name or any(kw in str(company_name).lower() for kw in ["confidentiel", "anonyme", "non renseigné", "nc"])
+            
+            if is_confidential:
+                # Fallback 1: Check contact name (often contains company name in LBA/FT API)
+                if isinstance(contact_data, dict) and contact_data.get("name"):
+                    c_name = contact_data["name"]
+                    if not any(kw in str(c_name).lower() for kw in ["monsieur", "madame", "direction", "agence"]):
+                        company_name = c_name
+                        is_confidential = False
 
+            if is_confidential:
+                # Fallback 2: Try to extract from title (e.g. "Assistant RH - Nom Entreprise")
+                full_title = raw_data.get("title") or job_data.get("title") or ""
+                if " - " in full_title:
+                    parts = full_title.split(" - ")
+                    # If the last part is short and doesn't look like a location
+                    potential_name = parts[-1].strip()
+                    if potential_name and len(potential_name) > 2 and not any(char.isdigit() for char in potential_name):
+                        company_name = potential_name
+                        is_confidential = False
+
+            if is_confidential:
+                # Fallback 3: Extract from company description if it starts with the name
+                c_desc = company_data.get("description") if isinstance(company_data, dict) else ""
+                if c_desc and len(c_desc) > 5:
+                    # Often starts with "L'entreprise NAME..." or just "NAME est une..."
+                    # We take the first sentence or first 5 words
+                    first_phrase = c_desc.split(".")[0].split(":")[0]
+                    words = first_phrase.split()
+                    if words:
+                        # Simple heuristic: take first 3-4 words if they don't look like a full sentence
+                        if len(words) <= 5:
+                            company_name = first_phrase.strip()
+            
             if not company_name:
                 company_name = "Entreprise confidentielle"
 
