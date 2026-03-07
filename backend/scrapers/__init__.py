@@ -9,6 +9,7 @@ from scrapers.hellowork import HelloWorkScraper
 from scrapers.wttj import WelcomeToTheJungleScraper
 from scrapers.apec import ApecScraper
 from scrapers.meteojob import MeteojobScraper
+from scrapers.rhalternance import RHAlternanceScraper
 
 __all__ = [
     "BaseScraper",
@@ -20,4 +21,5 @@ __all__ = [
     "WelcomeToTheJungleScraper",
     "ApecScraper",
     "MeteojobScraper",
+    "RHAlternanceScraper"
 ]

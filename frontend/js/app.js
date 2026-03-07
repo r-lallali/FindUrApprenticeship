@@ -1254,6 +1254,7 @@ document.addEventListener('DOMContentLoaded', () => {
             wttj: 'Welcome to the Jungle',
             apec: 'Apec',
             meteojob: 'Meteojob',
+            rhalternance: 'RH Alternance',
         };
         return names[source] || source;
     }

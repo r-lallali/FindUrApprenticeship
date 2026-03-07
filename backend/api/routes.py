@@ -805,7 +805,7 @@ async def run_global_scrape():
     from scrapers import (
         LaBonneAlternanceScraper, FranceTravailScraper,
         LinkedInScraper, HelloWorkScraper, WelcomeToTheJungleScraper,
-        ApecScraper, MeteojobScraper
+        ApecScraper, MeteojobScraper, RHAlternanceScraper
     )
     from database import SessionLocal
     import asyncio
@@ -818,6 +818,7 @@ async def run_global_scrape():
         ("wttj", WelcomeToTheJungleScraper),
         ("apec", ApecScraper),
         ("meteojob", MeteojobScraper),
+        ("rhalternance", RHAlternanceScraper),
     ]
 
     global global_scraping_status
