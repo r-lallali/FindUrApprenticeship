@@ -64,6 +64,7 @@ SCHOOL_KEYWORDS = [
     "cfi formation", "cma formation", "directt formation",
     "nexa digital", "formation alternance superieure",
     "organisation formations informatiques",
+    "bloom alternance", "acadomia", "complétude", "completude", "anacours",
     # Generic patterns
     "formation en alternance",
     "notre école", "notre ecole",
