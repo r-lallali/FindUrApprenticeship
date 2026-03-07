@@ -1890,9 +1890,22 @@ a:hover {
 .btn-user {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding-left: 12px !important;
-    padding-right: 14px !important;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+}
+
+.btn-user:hover {
+    border-color: var(--border-hover);
+    color: var(--text-primary);
 }
 
 .user-avatar {

@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const initial = user?.username?.charAt(0).toUpperCase() || '?';
             slot.innerHTML = `
                 <div class="user-menu">
-                    <button class="btn btn-theme btn-user" id="btnUser">
+                    <button class="btn-user" id="btnUser">
                         <span class="user-avatar">${initial}</span>
                         ${escapeHtml(user?.username || '')}
                     </button>
