@@ -2,9 +2,29 @@
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Text, Boolean, DateTime, Index, ForeignKey
+from sqlalchemy import Column, String, Text, Boolean, DateTime, Index, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 from database import Base
+
+
+class ScrapingLog(Base):
+    """Log of a scraping session."""
+
+    __tablename__ = "scraping_logs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    source = Column(String(100), nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    offers_found = Column(Integer, default=0)
+    offers_new = Column(Integer, default=0)
+    total_before = Column(Integer, default=0)
+    total_after = Column(Integer, default=0)
+    duration_seconds = Column(Integer, nullable=True)
+    status = Column(String(20), nullable=False, default="success")  # success | error
+    message = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<ScrapingLog {self.source} @ {self.timestamp}: {self.offers_new} new>"
 
 
 class Offer(Base):

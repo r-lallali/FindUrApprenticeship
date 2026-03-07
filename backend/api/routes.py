@@ -3,7 +3,7 @@
 import json
 import time
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 from fastapi import APIRouter, Depends, Query, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, desc, cast
 from sqlalchemy.dialects.postgresql import JSONB
 
 from database import get_db
-from models import Offer, User, Favorite
+from models import Offer, User, Favorite, ScrapingLog
 from schemas import (
     OfferListResponse, OfferResponse, FilterOptions, ScrapingStatus, TechStats,
     UserRegister, UserLogin, UserResponse, TokenResponse,
@@ -835,7 +835,11 @@ async def run_global_scrape():
     async def scrape_and_save(source_name, scraper_class):
         nonlocal completed
         bg_db = SessionLocal()
+        start_time = datetime.now(timezone.utc)
         try:
+            # Total offers before this source's scrape
+            total_before = bg_db.query(Offer).count()
+            
             scraper = scraper_class()
             offers = await scraper.run()
             
@@ -870,9 +874,38 @@ async def run_global_scrape():
                     if offer_data.get("publication_date"):
                         existing.publication_date = offer_data["publication_date"]
             bg_db.commit()
+            
+            # Total offers after this source's scrape
+            total_after = bg_db.query(Offer).count()
+            
+            # Record log
+            log = ScrapingLog(
+                source=source_name,
+                timestamp=start_time,
+                offers_found=len(offers),
+                offers_new=new_count,
+                total_before=total_before,
+                total_after=total_after,
+                status="success"
+            )
+            bg_db.add(log)
+            bg_db.commit()
+            
             print(f"Scraping completed for {source_name}. {new_count} new offers added.")
         except Exception as e:
             bg_db.rollback()
+            # Record error log
+            try:
+                error_log = ScrapingLog(
+                    source=source_name,
+                    timestamp=start_time,
+                    status="error",
+                    message=str(e)
+                )
+                bg_db.add(error_log)
+                bg_db.commit()
+            except:
+                pass
             print(f"Scraping error for {source_name}: {e}")
         finally:
             bg_db.close()
@@ -932,7 +965,11 @@ async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Ses
         global_scraping_status["message"] = f"Scraping {source_name} en cours..."
         global_scraping_status["details"] = f"Lancement de {source_name}"
         bg_db = SessionLocal()
+        start_time = datetime.now(timezone.utc)
         try:
+            # Total offers before
+            total_before = bg_db.query(Offer).count()
+            
             scraper = scraper_class()
             global_scraping_status["progress"] = 30
             offers = await scraper.run()
@@ -969,6 +1006,23 @@ async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Ses
                     if offer_data.get("publication_date"):
                         existing.publication_date = offer_data["publication_date"]
             bg_db.commit()
+            
+            # Total offers after
+            total_after = bg_db.query(Offer).count()
+            
+            # Record log
+            log = ScrapingLog(
+                source=source_name,
+                timestamp=start_time,
+                offers_found=len(offers),
+                offers_new=new_count,
+                total_before=total_before,
+                total_after=total_after,
+                status="success"
+            )
+            bg_db.add(log)
+            bg_db.commit()
+            
             global_stats_cache.clear()
             global_scraping_status["progress"] = 100
             global_scraping_status["message"] = "Terminé"
@@ -976,6 +1030,17 @@ async def trigger_scrape(source: str, background_tasks: BackgroundTasks, db: Ses
             print(f"Scraping completed for {source_name}. {new_count} new offers added.")
         except Exception as e:
             bg_db.rollback()
+            try:
+                error_log = ScrapingLog(
+                    source=source_name,
+                    timestamp=start_time,
+                    status="error",
+                    message=str(e)
+                )
+                bg_db.add(error_log)
+                bg_db.commit()
+            except:
+                pass
             global_scraping_status["message"] = "Erreur"
             global_scraping_status["details"] = str(e)
             print(f"Scraping error for {source_name}: {e}")
