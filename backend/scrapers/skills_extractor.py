@@ -274,6 +274,11 @@ NON_ALTERNANCE_KEYWORDS = [
     "cdd de droit commun",
     "pas en alternance",
     "hors alternance",
+    "contrat de professionnalisation",
+    "contrat pro",
+    "professionnalisation",
+    "contrat de professionalisation",
+    "professionnalisme",
     "livecampus",
     "poste à pourvoir immédiatement",
     "poste a pourvoir immediatement",
@@ -312,8 +317,6 @@ GRADUATED_INDICATORS = [
 ALTERNANCE_POSITIVE = [
     "alternance", "alternant", "alternante",
     "apprentissage", "apprenti", "apprentie",
-    "contrat de professionnalisation",
-    "contrat pro",
     "en alternance",
     "formation en alternance",
 ]
@@ -333,6 +336,11 @@ def is_alternance_offer(title: str, description: Optional[str] = None,
     # Check for positive alternance signals
     has_alternance_in_title = any(kw in title_val for kw in ALTERNANCE_POSITIVE)
     has_alternance = any(kw in text for kw in ALTERNANCE_POSITIVE)
+
+    # Specific check for professionalization (excluded per user request)
+    is_pro = any(kw in text for kw in ["contrat de professionnalisation", "contrat pro", "professionnalisation"])
+    if is_pro and not any(kw in text for kw in ["apprentissage", "apprentis"]):
+        return False
 
     # Check for negative signals (non-alternance CDD/CDI patterns)
     has_non_alternance = any(kw in text for kw in NON_ALTERNANCE_KEYWORDS)

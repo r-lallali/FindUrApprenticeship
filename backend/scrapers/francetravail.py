@@ -30,7 +30,6 @@ class FranceTravailScraper(BaseScraper):
     SEARCH_TERMS = [
         "alternance",
         "apprentissage",
-        "contrat de professionnalisation",
     ]
 
     def __init__(self):
